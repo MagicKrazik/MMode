@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Letter from Past You</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .letter { background: #f9f9f9; padding: 30px; border-radius: 10px; margin: 20px 0; }
+        .header { text-align: center; color: #1976d2; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>📬 A Letter from Past You</h2>
+        <p>Written on {{ letter.created_at|date:"F d, Y" }}</p>
+    </div>
+    <div class="letter">
+        <h3>{{ letter.subject }}</h3>
+        <p>{{ letter.content|linebreaks }}</p>
+        <hr>
+        <p><em>This letter was scheduled to arrive today to support your MonkMode journey.</em></p>
+    </div>
+</body>
+</html>

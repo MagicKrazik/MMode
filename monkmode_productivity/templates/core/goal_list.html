@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Goals - MonkMode{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>My Goals</h2>
+    <a href="{% url 'core:goal_create' %}" class="btn btn-primary">Create New Goal</a>
+</div>
+
+{% if goals %}
+    <div class="row">
+        {% for goal in goals %}
+        <div class="col-md-6 mb-4">
+            <div class="card goal-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ goal.title }}</h5>
+                    <span class="badge bg-{{ goal.current_status|default:'secondary' }}">{{ goal.get_current_status_display }}</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">{{ goal.description|truncatewords:20 }}</p>
+                    <div class="mb-2">
+                        <strong>Timeline:</strong> {{ goal.start_date }} to {{ goal.end_date }}
+                        <small class="text-muted">({{ goal.duration_days }} days)</small>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Target:</strong> {{ goal.target_outcome|truncatewords:15 }}
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'core:goal_detail' goal.id %}" class="btn btn-primary btn-sm">View Details</a>
+                        <a href="{% url 'core:goal_edit' goal.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+                        {% if goal.current_status == 'draft' %}
+                            <a href="{% url 'core:generate_schedule' goal.id %}" class="btn btn-outline-success btn-sm">Activate</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-center mt-5">
+        <h4>No goals yet</h4>
+        <p class="text-muted">Create your first MonkMode goal to get started on your focused journey.</p>
+        <a href="{% url 'core:goal_create' %}" class="btn btn-primary">Create Your First Goal</a>
+    </div>
+{% endif %}
+{% endblock %}

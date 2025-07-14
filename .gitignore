@@ -1,0 +1,24 @@
+# Python
+*.pyc
+__pycache__/
+.Python
+env/
+venv/
+pip-log.txt
+pip-delete-this-arg.txt
+
+# Django
+*.sqlite3
+*.log
+local_settings.py
+media/
+
+# Files_to_be_used
+info.md
+Files_to_be_used/
+
+# IDEs and other
+.vscode/
+.DS_Store
+*.sublime-project
+*.sublime-workspace

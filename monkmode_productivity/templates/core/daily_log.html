@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Daily Reflection - MonkMode{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3>Daily Reflection - {{ log.log_date }}</h3>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="{{ form.reflection_text.id_for_label }}" class="form-label">How did your day go?</label>
+                        {{ form.reflection_text }}
+                        {% if form.reflection_text.errors %}
+                            <div class="text-danger">{{ form.reflection_text.errors }}</div>
+                        {% endif %}
+                        <div class="form-text">Reflect on your progress, challenges, wins, and lessons learned.</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.adherence_score.id_for_label }}" class="form-label">Adherence Score (1-10)</label>
+                                {{ form.adherence_score }}
+                                {% if form.adherence_score.errors %}
+                                    <div class="text-danger">{{ form.adherence_score.errors }}</div>
+                                {% endif %}
+                                <div class="form-text">How well did you stick to your MonkMode schedule?</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="{{ form.mood_rating.id_for_label }}" class="form-label">Mood Rating (1-5)</label>
+                                {{ form.mood_rating }}
+                                {% if form.mood_rating.errors %}
+                                    <div class="text-danger">{{ form.mood_rating.errors }}</div>
+                                {% endif %}
+                                <div class="form-text">How did you feel overall today?</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Save Reflection</button>
+                        <a href="{% url 'dashboard:dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

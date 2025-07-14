@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - MonkMode{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1>Welcome back, {{ user.first_name|default:user.username }}!</h1>
+    </div>
+</div>
+
+<div class="row mt-4">
+<!-- Active Goal Card -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Active Goal</h5>
+            </div>
+            <div class="card-body">
+                {% if active_goal %}
+                    <h6>{{ active_goal.title }}</h6>
+                    <p class="text-muted">{{ active_goal.description|truncatewords:20 }}</p>
+                    <p><strong>Timeline:</strong> {{ active_goal.start_date }} to {{ active_goal.end_date }}</p>
+                    <a href="{% url 'core:goal_detail' active_goal.id %}" class="btn btn-primary btn-sm">View Details</a>
+                {% else %}
+                    <p>No active goal set.</p>
+                    <a href="{% url 'core:goal_create' %}" class="btn btn-primary">Create Your First Goal</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+<!-- Today's Progress Card -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Today's Progress</h5>
+            </div>
+            <div class="card-body">
+                {% if total_activities > 0 %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>{{ completed_activities }} of {{ total_activities }} activities completed</span>
+                        <span class="badge bg-primary">{{ completion_percentage|floatformat:0 }}%</span>
+                    </div>
+                    <div class="progress mb-3">
+                        <div class="progress-bar" role="progressbar" style="width: {{ completion_percentage }}%"
+                             aria-valuenow="{{ completion_percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    {% if active_period %}
+                        <a href="{% url 'core:schedule_view' active_period.id %}" class="btn btn-outline-primary btn-sm">View Schedule</a>
+                    {% endif %}
+                {% else %}
+                    <p>No activities scheduled for today.</p>
+                    {% if active_goal %}
+                        <a href="{% url 'core:generate_schedule' active_goal.id %}" class="btn btn-primary btn-sm">Generate Schedule</a>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Today's Activities -->
+{% if today_activities %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Today's Activities</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for activity in today_activities %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card activity-card {% if activity.is_completed %}completed{% endif %}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6>{{ activity.activity_type.name }}</h6>
+                                        <p class="text-muted mb-1">{{ activity.start_time }} - {{ activity.end_time }}</p>
+                                        {% if activity.description %}
+                                            <p class="small">{{ activity.description }}</p>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        {% if activity.is_completed %}
+                                            <span class="badge bg-success">✓ Done</span>
+                                        {% else %}
+                                            <form method="post" action="{% url 'core:mark_complete' activity.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-outline-success">Mark Complete</button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <a href="{% url 'core:daily_log' %}" class="btn btn-outline-primary me-2">Daily Reflection</a>
+                <a href="{% url 'core:goal_list' %}" class="btn btn-outline-secondary me-2">View All Goals</a>
+                {% if active_goal and not active_period %}
+                    <a href="{% url 'core:generate_schedule' active_goal.id %}" class="btn btn-outline-info">Generate Schedule</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Reflections -->
+{% if recent_logs %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Recent Reflections</h5>
+            </div>
+            <div class="card-body">
+                {% for log in recent_logs %}
+                <div class="mb-3 pb-2 border-bottom">
+                    <div class="d-flex justify-content-between">
+                        <strong>{{ log.log_date }}</strong>
+                        {% if log.adherence_score %}
+                            <span class="badge bg-info">Adherence: {{ log.adherence_score }}/10</span>
+                        {% endif %}
+                    </div>
+                    <p class="mt-1 mb-0">{{ log.reflection_text|truncatewords:15 }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}

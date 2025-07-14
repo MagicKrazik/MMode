@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ goal.title }} - MonkMode{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>{{ goal.title }}</h2>
+        <span class="badge bg-{{ goal.current_status }}">{{ goal.get_current_status_display }}</span>
+    </div>
+    <div>
+        <a href="{% url 'core:goal_edit' goal.id %}" class="btn btn-outline-primary me-2">Edit Goal</a>
+        <a href="{% url 'core:goal_list' %}" class="btn btn-outline-secondary">Back to Goals</a>
+    </div>
+</div>
+
+<div class="row">
+<!-- Goal Details -->
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Goal Details</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Description:</strong></p>
+                <p>{{ goal.description }}</p>
+
+                <p><strong>Target Outcome:</strong></p>
+                <p>{{ goal.target_outcome }}</p>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Start Date:</strong> {{ goal.start_date }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>End Date:</strong> {{ goal.end_date }}</p>
+                    </div>
+                </div>
+
+                <p><strong>Duration:</strong> {{ goal.duration_days }} days</p>
+
+                {% if goal.is_active_period %}
+                    <div class="alert alert-success">
+                        <strong>Active Period:</strong> This goal is currently active!
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+<!-- Objectives -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Objectives</h5>
+                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addObjectiveModal">
+                    Add Objective
+                </button>
+            </div>
+            <div class="card-body">
+                {% if objectives %}
+                    <div class="list-group">
+                        {% for objective in objectives %}
+                        <div class="list-group-item d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <p class="mb-1 {% if objective.is_completed %}text-decoration-line-through text-muted{% endif %}">
+                                    {{ objective.description }}
+                                </p>
+                                {% if objective.due_date %}
+                                    <small class="text-muted">Due: {{ objective.due_date }}</small>
+                                {% endif %}
+                            </div>
+                            <div>
+                                {% if objective.is_completed %}
+                                    <span class="badge bg-success">✓ Completed</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Pending</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No objectives added yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+<!-- Sidebar -->
+    <div class="col-md-4">
+<!-- Schedule Periods -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Schedule Periods</h5>
+            </div>
+            <div class="card-body">
+                {% if periods %}
+                    {% for period in periods %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ period.period_name }}</strong>
+                                {% if period.is_active %}
+                                    <span class="badge bg-success ms-1">Active</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <small class="text-muted">{{ period.start_date }} to {{ period.end_date }}</small>
+                        <div class="mt-2">
+                            <a href="{% url 'core:schedule_view' period.id %}" class="btn btn-sm btn-outline-primary">View Schedule</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No schedules generated yet.</p>
+                {% endif %}
+
+                {% if goal.current_status == 'draft' or not periods %}
+                    <a href="{% url 'core:generate_schedule' goal.id %}" class="btn btn-primary btn-sm w-100">
+                        Generate Schedule
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+<!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if goal.current_status == 'draft' %}
+                        <button class="btn btn-success btn-sm" onclick="activateGoal({{ goal.id }})">Activate Goal</button>
+                    {% elif goal.current_status == 'active' %}
+                        <button class="btn btn-warning btn-sm" onclick="pauseGoal({{ goal.id }})">Pause Goal</button>
+                        <button class="btn btn-success btn-sm" onclick="completeGoal({{ goal.id }})">Mark Complete</button>
+                    {% endif %}
+                    <a href="{% url 'core:daily_log' %}" class="btn btn-outline-primary btn-sm">Daily Reflection</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Objective Modal -->
+<div class="modal fade" id="addObjectiveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Objective</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'core:goal_detail' goal.id %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="objectiveDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="objectiveDescription" name="objective_description" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="objectiveDueDate" class="form-label">Due Date (Optional)</label>
+                        <input type="date" class="form-control" id="objectiveDueDate" name="objective_due_date">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Objective</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function activateGoal(goalId) {
+    if (confirm('Activate this goal? This will set it as your active MonkMode goal.')) {
+// Add AJAX call to activate goal
+        fetch(`/core/goals/${goalId}/activate/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        });
+    }
+}
+
+function completeGoal(goalId) {
+    if (confirm('Mark this goal as completed? This action cannot be undone.')) {
+// Add AJAX call to complete goal
+        fetch(`/core/goals/${goalId}/complete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

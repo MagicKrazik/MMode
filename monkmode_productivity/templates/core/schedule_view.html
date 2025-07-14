@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Schedule - {{ period.period_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>{{ period.period_name }}</h2>
+        <p class="text-muted">{{ period.start_date }} to {{ period.end_date }}</p>
+    </div>
+    <a href="{% url 'core:goal_detail' period.goal.id %}" class="btn btn-outline-primary">Back to Goal</a>
+</div>
+
+<div class="schedule-container">
+    {% for day, activities in activities_by_day.items %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Day {{ day }} - {{ activities.0.scheduled_date }}</h5>
+        </div>
+        <div class="card-body">
+            <div class="timeline">
+                {% for activity in activities %}
+                <div class="timeline-item {% if activity.is_completed %}completed{% endif %}">
+                    <div class="timeline-time">
+                        {{ activity.start_time }} - {{ activity.end_time }}
+                    </div>
+                    <div class="timeline-content">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6>{{ activity.activity_type.name }}</h6>
+                                {% if activity.description %}
+                                    <p class="mb-1">{{ activity.description }}</p>
+                                {% endif %}
+                                <small class="text-muted">{{ activity.duration_minutes }} minutes</small>
+                            </div>
+                            <div>
+                                {% if activity.is_completed %}
+                                    <span class="badge bg-success">✓ Completed</span>
+                                    {% if activity.completed_at %}
+                                        <br><small class="text-muted">{{ activity.completed_at|date:"H:i" }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <form method="post" action="{% url 'core:mark_complete' activity.id %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-success">Complete</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/schedule.css' %}">
+{% endblock %}

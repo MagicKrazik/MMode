@@ -1,0 +1,29 @@
+.progress {
+    height: 8px;
+    border-radius: 4px;
+}
+
+.activity-card {
+    min-height: 120px;
+}
+
+.activity-card.completed .card-body {
+    opacity: 0.8;
+}
+
+.quick-stats {
+    text-align: center;
+}
+
+.quick-stats .stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.quick-stats .stat-label {
+    font-size: 0.9rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}

@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}AI Coach{% if goal %} - {{ goal.title }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-robot"></i> AI Coach
+                        {% if goal %}
+                            <span class="badge bg-light text-dark ms-2">{{ goal.title }}</span>
+                        {% endif %}
+                    </h4>
+                </div>
+                <div class="card-body" style="height: 500px; overflow-y: auto;">
+                    {% if chat_history %}
+                        {% for message in chat_history %}
+                            <div class="mb-3 {% if message.role == 'user' %}text-end{% endif %}">
+                                <div class="d-inline-block p-3 rounded 
+                                    {% if message.role == 'user' %}bg-primary text-white{% else %}bg-light{% endif %}" 
+                                    style="max-width: 70%;">
+                                    {{ message.message_text|linebreaks }}
+                                </div>
+                                <small class="d-block text-muted mt-1">
+                                    {{ message.timestamp|date:"M j, H:i" }}
+                                </small>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-comments fa-3x mb-3"></i>
+                            <h5>Start a conversation with your AI Coach!</h5>
+                            <p>Ask about goal planning, schedule optimization, or motivation.</p>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <form method="post" class="d-flex">
+                        {% csrf_token %}
+                        <input type="text" name="message" class="form-control me-2" 
+                               placeholder="Ask your AI coach anything..." required>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

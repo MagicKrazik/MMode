@@ -1,0 +1,529 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ goal.title }} - MonkMode{% endblock %}
+
+{% block extra_css %}
+<style>
+    .goal-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .progress-ring {
+        width: 100px;
+        height: 100px;
+        position: relative;
+    }
+    
+    .progress-ring svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+    }
+    
+    .progress-ring-circle {
+        fill: transparent;
+        stroke: rgba(255,255,255,0.3);
+        stroke-width: 6;
+    }
+    
+    .progress-ring-fill {
+        fill: transparent;
+        stroke: #28a745;
+        stroke-width: 6;
+        stroke-linecap: round;
+        transition: stroke-dasharray 0.3s ease;
+    }
+    
+    .objective-item {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        border-left: 4px solid #dee2e6;
+    }
+    
+    .objective-item:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    
+    .objective-completed {
+        border-left-color: #28a745;
+        background: linear-gradient(135deg, #f8fff8 0%, #e8f5e8 100%);
+    }
+    
+    .objective-pending {
+        border-left-color: #ffc107;
+    }
+    
+    .objective-overdue {
+        border-left-color: #dc3545;
+        background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+    }
+    
+    .activity-timeline {
+        position: relative;
+    }
+    
+    .activity-timeline::before {
+        content: '';
+        position: absolute;
+        left: 20px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #dee2e6;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-left: 50px;
+        margin-bottom: 20px;
+    }
+    
+    .timeline-marker {
+        position: absolute;
+        left: 14px;
+        top: 8px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #6c757d;
+        border: 3px solid white;
+        box-shadow: 0 0 0 3px #dee2e6;
+    }
+    
+    .timeline-marker.completed {
+        background: #28a745;
+        box-shadow: 0 0 0 3px #28a745;
+    }
+    
+    .add-objective-form {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 30px;
+    }
+    
+    .stats-card {
+        text-align: center;
+        padding: 20px;
+        border-radius: 12px;
+        background: white;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+    
+    .priority-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .priority-high { background: #fee; color: #dc3545; }
+    .priority-medium { background: #fff3cd; color: #856404; }
+    .priority-low { background: #d1ecf1; color: #0c5460; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Goal Header -->
+<div class="goal-header">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <div class="d-flex align-items-center mb-2">
+                <h1 class="mb-0 me-3">{{ goal.title }}</h1>
+                <span class="badge bg-light text-dark">{{ goal.get_current_status_display }}</span>
+            </div>
+            <p class="mb-3 opacity-75">{{ goal.description }}</p>
+            <div class="row text-center">
+                <div class="col-4">
+                    <div class="small opacity-75">Start Date</div>
+                    <div class="fw-bold">{{ goal.start_date|date:"M j, Y" }}</div>
+                </div>
+                <div class="col-4">
+                    <div class="small opacity-75">End Date</div>
+                    <div class="fw-bold">{{ goal.end_date|date:"M j, Y" }}</div>
+                </div>
+                <div class="col-4">
+                    <div class="small opacity-75">Priority Level</div>
+                    <div class="fw-bold">{{ goal.priority_level }}/5</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 text-center">
+            <div class="progress-ring">
+                <svg>
+                    <circle class="progress-ring-circle" cx="50" cy="50" r="42"></circle>
+                    <circle class="progress-ring-fill" cx="50" cy="50" r="42" 
+                            stroke-dasharray="{{ goal.completion_percentage|floatformat:0 }}, 100"></circle>
+                </svg>
+                <div class="position-absolute top-50 start-50 translate-middle text-center">
+                    <div class="h2 mb-0">{{ goal.completion_percentage|floatformat:0 }}%</div>
+                    <small>Complete</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stat-number text-primary">{{ progress_data.total_objectives }}</div>
+            <div class="text-muted">Total Objectives</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stat-number text-success">{{ progress_data.completed_objectives }}</div>
+            <div class="text-muted">Completed</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stat-number text-info">{{ progress_data.total_activities }}</div>
+            <div class="text-muted">Total Activities</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="stat-number text-warning">{{ progress_data.completed_activities }}</div>
+            <div class="text-muted">Activities Done</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column - Objectives -->
+    <div class="col-lg-8">
+        <!-- Add New Objective Form -->
+        <div class="add-objective-form">
+            <h5 class="mb-3">
+                <i class="fas fa-plus-circle text-primary"></i> Add New Objective
+            </h5>
+            <form method="post" id="addObjectiveForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_objective">
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="mb-3">
+                            <label class="form-label">Objective Description *</label>
+                            <textarea name="description" class="form-control" rows="2" 
+                                      placeholder="What specific outcome do you want to achieve?" required></textarea>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Due Date</label>
+                            <input type="date" name="due_date" class="form-control" 
+                                   min="{{ goal.start_date|date:'Y-m-d' }}" max="{{ goal.end_date|date:'Y-m-d' }}">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Estimated Hours</label>
+                            <input type="number" name="estimated_hours" class="form-control" 
+                                   min="1" max="1000" placeholder="Hours needed">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">Difficulty Level</label>
+                            <select name="difficulty_level" class="form-select">
+                                <option value="1">1 - Very Easy</option>
+                                <option value="2">2 - Easy</option>
+                                <option value="3" selected>3 - Medium</option>
+                                <option value="4">4 - Hard</option>
+                                <option value="5">5 - Very Hard</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100 mb-3">
+                            <i class="fas fa-plus"></i> Add Objective
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Objectives List -->
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-list-check text-success"></i> Objectives
+                    <span class="badge bg-primary ms-2">{{ objectives|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if objectives %}
+                    {% for objective in objectives %}
+                    <div class="objective-item {% if objective.is_completed %}objective-completed{% elif objective.due_date and objective.due_date < today and not objective.is_completed %}objective-overdue{% else %}objective-pending{% endif %}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-2">
+                                    {% if objective.is_completed %}
+                                        <i class="fas fa-check-circle text-success me-2"></i>
+                                    {% else %}
+                                        <i class="fas fa-circle text-muted me-2"></i>
+                                    {% endif %}
+                                    <h6 class="mb-0 {% if objective.is_completed %}text-decoration-line-through text-muted{% endif %}">
+                                        {{ objective.description }}
+                                    </h6>
+                                </div>
+                                
+                                <div class="row">
+                                    {% if objective.due_date %}
+                                    <div class="col-md-3">
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar"></i> Due: {{ objective.due_date|date:"M j" }}
+                                            {% if objective.due_date < today and not objective.is_completed %}
+                                                <span class="text-danger">(Overdue)</span>
+                                            {% elif objective.due_date == today %}
+                                                <span class="text-warning">(Today)</span>
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if objective.estimated_hours %}
+                                    <div class="col-md-3">
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock"></i> {{ objective.estimated_hours }}h estimated
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="col-md-3">
+                                        <span class="priority-badge {% if objective.difficulty_level >= 4 %}priority-high{% elif objective.difficulty_level >= 3 %}priority-medium{% else %}priority-low{% endif %}">
+                                            Difficulty: {{ objective.difficulty_level }}/5
+                                        </span>
+                                    </div>
+                                    
+                                    {% if objective.priority_score %}
+                                    <div class="col-md-3">
+                                        <small class="text-muted">
+                                            <i class="fas fa-star"></i> Priority: {{ objective.priority_score|floatformat:1 }}
+                                        </small>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="ms-3">
+                                {% if not objective.is_completed %}
+                                    <button type="button" class="btn btn-success btn-sm" 
+                                            onclick="completeObjective({{ objective.id }})">
+                                        <i class="fas fa-check"></i> Complete
+                                    </button>
+                                {% else %}
+                                    <div class="text-success">
+                                        <i class="fas fa-check-circle"></i>
+                                        <small class="d-block">{{ objective.completed_at|date:"M j, H:i" }}</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-list-check fa-3x text-muted mb-3"></i>
+                        <h6>No objectives added yet</h6>
+                        <p class="text-muted">Break down your goal into specific, actionable objectives above.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column - Activity Timeline & Actions -->
+    <div class="col-lg-4">
+        <!-- Action Buttons -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-rocket text-primary"></i> Actions
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if active_period %}
+                        <a href="{% url 'dashboard:schedule_view' active_period.id %}" class="btn btn-primary">
+                            <i class="fas fa-calendar-alt"></i> View Schedule
+                        </a>
+                    {% else %}
+                        <a href="{% url 'dashboard:ai_chat' goal.id %}" class="btn btn-success">
+                            <i class="fas fa-robot"></i> Generate AI Schedule
+                        </a>
+                    {% endif %}
+                    
+                    <a href="{% url 'dashboard:ai_chat' goal.id %}" class="btn btn-outline-info">
+                        <i class="fas fa-comments"></i> Chat with AI Coach
+                    </a>
+                    
+                    <a href="{% url 'dashboard:motivation_center' %}" class="btn btn-outline-warning">
+                        <i class="fas fa-fire"></i> Add Motivation Content
+                    </a>
+                    
+                    {% if goal.current_status == 'active' %}
+                        <button type="button" class="btn btn-outline-secondary" onclick="pauseGoal()">
+                            <i class="fas fa-pause"></i> Pause Goal
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activities Timeline -->
+        {% if recent_activities %}
+        <div class="card">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-history text-info"></i> Recent Activities
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="activity-timeline">
+                    {% for activity in recent_activities|slice:":10" %}
+                    <div class="timeline-item">
+                        <div class="timeline-marker {% if activity.is_completed %}completed{% endif %}"></div>
+                        <div class="small">
+                            <div class="fw-bold">{{ activity.activity_type.name }}</div>
+                            <div class="text-muted">
+                                Day {{ activity.day_of_period }} - {{ activity.start_time|time:"H:i" }}
+                                {% if activity.is_completed %}
+                                    <i class="fas fa-check text-success ms-1"></i>
+                                {% endif %}
+                            </div>
+                            {% if activity.description %}
+                                <div class="text-muted small">{{ activity.description|truncatewords:8 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                {% if active_period %}
+                <div class="text-center mt-3">
+                    <a href="{% url 'dashboard:schedule_view' active_period.id %}" class="btn btn-outline-primary btn-sm">
+                        View Full Schedule
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Complete Objective
+function completeObjective(objectiveId) {
+    const formData = new FormData();
+    formData.append('action', 'complete_objective');
+    formData.append('objective_id', objectiveId);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.ok) {
+            location.reload(); // Reload to show updated state
+        } else {
+            showToast('Error completing objective', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Error completing objective', 'error');
+    });
+}
+
+// Form validation
+document.getElementById('addObjectiveForm').addEventListener('submit', function(e) {
+    const description = this.querySelector('[name="description"]').value.trim();
+    
+    if (!description) {
+        e.preventDefault();
+        showToast('Please enter an objective description', 'error');
+        return;
+    }
+    
+    if (description.length < 10) {
+        e.preventDefault();
+        showToast('Objective description should be at least 10 characters', 'error');
+        return;
+    }
+});
+
+// Auto-save draft objectives
+let draftTimer;
+document.querySelector('[name="description"]').addEventListener('input', function() {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => {
+        localStorage.setItem('objective_draft_{{ goal.id }}', this.value);
+    }, 1000);
+});
+
+// Load draft on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const draft = localStorage.getItem('objective_draft_{{ goal.id }}');
+    if (draft) {
+        document.querySelector('[name="description"]').value = draft;
+    }
+});
+
+// Clear draft on successful submission
+document.getElementById('addObjectiveForm').addEventListener('submit', function() {
+    localStorage.removeItem('objective_draft_{{ goal.id }}');
+});
+
+// Progress ring animation
+document.addEventListener('DOMContentLoaded', function() {
+    const progressRing = document.querySelector('.progress-ring-fill');
+    if (progressRing) {
+        const radius = 42;
+        const circumference = 2 * Math.PI * radius;
+        const progress = {{ goal.completion_percentage }};
+        const strokeDasharray = (progress / 100) * circumference;
+        
+        progressRing.style.strokeDasharray = `${strokeDasharray} ${circumference}`;
+    }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Alt + A to focus on add objective form
+    if (e.altKey && e.key === 'a') {
+        e.preventDefault();
+        document.querySelector('[name="description"]').focus();
+    }
+});
+</script>
+{% endblock %}

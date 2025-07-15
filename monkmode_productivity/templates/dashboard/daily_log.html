@@ -1,0 +1,694 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Daily Log - {{ log_date|date:"F j, Y" }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .daily-log-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .log-section {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .log-section:hover {
+        transform: translateY(-2px);
+    }
+    
+    .rating-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 15px 0;
+    }
+    
+    .rating-slider {
+        flex: 1;
+        margin: 0 15px;
+    }
+    
+    .rating-value {
+        min-width: 60px;
+        text-align: center;
+        font-weight: 700;
+        font-size: 1.2rem;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: #f8f9fa;
+        border: 2px solid #dee2e6;
+    }
+    
+    .rating-excellent { background: #d4edda; border-color: #28a745; color: #155724; }
+    .rating-good { background: #d1ecf1; border-color: #17a2b8; color: #0c5460; }
+    .rating-fair { background: #fff3cd; border-color: #ffc107; color: #856404; }
+    .rating-poor { background: #f8d7da; border-color: #dc3545; color: #721c24; }
+    
+    .energy-timeline {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 12px;
+        margin: 15px 0;
+    }
+    
+    .energy-time {
+        text-align: center;
+        flex: 1;
+    }
+    
+    .energy-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: white;
+        margin: 0 auto 8px;
+    }
+    
+    .energy-high { background: #28a745; }
+    .energy-medium { background: #ffc107; }
+    .energy-low { background: #dc3545; }
+    
+    .quick-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 15px 0;
+    }
+    
+    .tag-button {
+        padding: 6px 12px;
+        border: 2px solid #dee2e6;
+        background: white;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.85rem;
+    }
+    
+    .tag-button:hover {
+        border-color: #667eea;
+        background: #f8f9ff;
+    }
+    
+    .tag-button.active {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+    }
+    
+    .activities-summary {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 25px;
+    }
+    
+    .activity-item {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.3);
+    }
+    
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    
+    .save-indicator {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 10px 15px;
+        background: #28a745;
+        color: white;
+        border-radius: 8px;
+        transform: translateX(100px);
+        opacity: 0;
+        transition: all 0.3s ease;
+        z-index: 1000;
+    }
+    
+    .save-indicator.show {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    
+    .reflection-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+    }
+    
+    .stat-box {
+        text-align: center;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+    
+    .mood-emoji {
+        font-size: 2rem;
+        margin: 0 5px;
+        cursor: pointer;
+        opacity: 0.3;
+        transition: all 0.3s ease;
+    }
+    
+    .mood-emoji:hover,
+    .mood-emoji.active {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Daily Log Header -->
+<div class="daily-log-header">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h1 class="mb-2">
+                <i class="fas fa-journal-whills"></i> 
+                Daily Reflection
+            </h1>
+            <p class="mb-0 opacity-75">{{ log_date|date:"l, F j, Y" }}</p>
+            {% if is_today %}
+                <small class="opacity-75">
+                    <i class="fas fa-clock"></i> Today's reflection
+                </small>
+            {% else %}
+                <small class="opacity-75">
+                    <i class="fas fa-history"></i> Past reflection
+                </small>
+            {% endif %}
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="btn-group" role="group">
+                {% now "Y-m-d" as today_str %}
+                {% if log_date|date:"Y-m-d" > today_str %}
+                    <a href="{% url 'dashboard:daily_log_date' log_date|date:'Y-m-d' %}" class="btn btn-outline-light">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </a>
+                {% endif %}
+                <a href="{% url 'dashboard:daily_log' %}" class="btn btn-outline-light">Today</a>
+                {% if log_date|date:"Y-m-d" < today_str %}
+                    <a href="{% url 'dashboard:daily_log_date' log_date|date:'Y-m-d' %}" class="btn btn-outline-light">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Today's Activities Summary -->
+{% if today_activities %}
+<div class="activities-summary">
+    <h5 class="mb-3">
+        <i class="fas fa-list-check text-primary"></i> Today's Activities
+    </h5>
+    <div class="row">
+        {% for activity in today_activities %}
+        <div class="col-md-6">
+            <div class="activity-item">
+                <div class="flex-grow-1">
+                    <span class="fw-bold">{{ activity.activity_type.name }}</span>
+                    <div class="small text-muted">{{ activity.start_time|time:"H:i" }} - {{ activity.end_time|time:"H:i" }}</div>
+                </div>
+                <div class="ms-2">
+                    {% if activity.is_completed %}
+                        <i class="fas fa-check-circle text-success"></i>
+                    {% else %}
+                        <i class="fas fa-circle text-muted"></i>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<form method="post" id="dailyLogForm" class="auto-save-form">
+    {% csrf_token %}
+    
+    <div class="row">
+        <!-- Left Column -->
+        <div class="col-lg-8">
+            <!-- Mood & Energy Section -->
+            <div class="log-section">
+                <h5 class="mb-4">
+                    <i class="fas fa-heart text-danger"></i> Mood & Energy
+                </h5>
+                
+                <!-- Mood Rating -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">How are you feeling today?</label>
+                    <div class="d-flex justify-content-center align-items-center my-3">
+                        <span class="mood-emoji" data-mood="1" title="Terrible">😢</span>
+                        <span class="mood-emoji" data-mood="2" title="Bad">😕</span>
+                        <span class="mood-emoji" data-mood="3" title="Okay">😐</span>
+                        <span class="mood-emoji" data-mood="4" title="Good">😊</span>
+                        <span class="mood-emoji" data-mood="5" title="Excellent">😄</span>
+                    </div>
+                    <input type="hidden" name="mood_rating" id="mood_rating" value="{{ daily_log.mood_rating|default:'' }}">
+                    <div class="text-center">
+                        <small class="text-muted">Click an emoji to rate your mood</small>
+                    </div>
+                </div>
+                
+                <!-- Energy Levels Throughout Day -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Energy Levels Throughout the Day</label>
+                    <div class="energy-timeline">
+                        <div class="energy-time">
+                            <div class="energy-icon energy-medium">
+                                <i class="fas fa-sun"></i>
+                            </div>
+                            <div class="fw-bold">Morning</div>
+                            <div class="rating-container">
+                                <input type="range" name="energy_morning" class="form-range rating-slider" 
+                                       min="1" max="10" value="{{ daily_log.energy_level_morning|default:5 }}" 
+                                       id="energy_morning">
+                                <div class="rating-value" id="energy_morning_value">{{ daily_log.energy_level_morning|default:5 }}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="energy-time">
+                            <div class="energy-icon energy-high">
+                                <i class="fas fa-sun-o"></i>
+                            </div>
+                            <div class="fw-bold">Afternoon</div>
+                            <div class="rating-container">
+                                <input type="range" name="energy_afternoon" class="form-range rating-slider" 
+                                       min="1" max="10" value="{{ daily_log.energy_level_afternoon|default:5 }}" 
+                                       id="energy_afternoon">
+                                <div class="rating-value" id="energy_afternoon_value">{{ daily_log.energy_level_afternoon|default:5 }}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="energy-time">
+                            <div class="energy-icon energy-low">
+                                <i class="fas fa-moon"></i>
+                            </div>
+                            <div class="fw-bold">Evening</div>
+                            <div class="rating-container">
+                                <input type="range" name="energy_evening" class="form-range rating-slider" 
+                                       min="1" max="10" value="{{ daily_log.energy_level_evening|default:5 }}" 
+                                       id="energy_evening">
+                                <div class="rating-value" id="energy_evening_value">{{ daily_log.energy_level_evening|default:5 }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Section -->
+            <div class="log-section">
+                <h5 class="mb-4">
+                    <i class="fas fa-chart-line text-success"></i> Performance & Focus
+                </h5>
+                
+                <!-- Adherence Score -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">How well did you stick to your schedule? (1-10)</label>
+                    <div class="rating-container">
+                        <span class="text-muted">Poor (1)</span>
+                        <input type="range" name="adherence_score" class="form-range rating-slider" 
+                               min="1" max="10" value="{{ daily_log.adherence_score|default:5 }}" 
+                               id="adherence_score">
+                        <span class="text-muted">Perfect (10)</span>
+                        <div class="rating-value" id="adherence_score_value">{{ daily_log.adherence_score|default:5 }}</div>
+                    </div>
+                </div>
+                
+                <!-- Distractions Count -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Number of major distractions today</label>
+                    <input type="number" name="distractions_count" class="form-control" 
+                           min="0" max="50" value="{{ daily_log.distractions_count|default:0 }}" 
+                           placeholder="Count of interruptions or distractions">
+                </div>
+            </div>
+
+            <!-- Reflection Section -->
+            <div class="log-section">
+                <h5 class="mb-4">
+                    <i class="fas fa-lightbulb text-warning"></i> Daily Reflection
+                </h5>
+                
+                <!-- Main Reflection -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Overall reflection on your day</label>
+                    <textarea name="reflection_text" class="form-control" rows="4" 
+                              placeholder="How did your day go? What did you learn? What would you do differently?">{{ daily_log.reflection_text }}</textarea>
+                </div>
+                
+                <!-- Wins of the Day -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">🏆 Wins of the day</label>
+                    <textarea name="wins_of_the_day" class="form-control" rows="3" 
+                              placeholder="What went well today? What are you proud of? Celebrate your victories!">{{ daily_log.wins_of_the_day }}</textarea>
+                    
+                    <!-- Quick Win Tags -->
+                    <div class="quick-tags">
+                        <span class="small text-muted me-2">Quick add:</span>
+                        <div class="tag-button" onclick="addQuickTag('wins_of_the_day', 'Completed all scheduled activities')">✅ All activities done</div>
+                        <div class="tag-button" onclick="addQuickTag('wins_of_the_day', 'Had great focus and productivity')">🎯 Great focus</div>
+                        <div class="tag-button" onclick="addQuickTag('wins_of_the_day', 'Learned something new')">📚 Learned something</div>
+                        <div class="tag-button" onclick="addQuickTag('wins_of_the_day', 'Took care of my health')">💪 Health focused</div>
+                    </div>
+                </div>
+                
+                <!-- Challenges Faced -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">⚡ Challenges faced</label>
+                    <textarea name="challenges_faced" class="form-control" rows="3" 
+                              placeholder="What obstacles did you encounter? How did you handle them?">{{ daily_log.challenges_faced }}</textarea>
+                    
+                    <!-- Quick Challenge Tags -->
+                    <div class="quick-tags">
+                        <span class="small text-muted me-2">Quick add:</span>
+                        <div class="tag-button" onclick="addQuickTag('challenges_faced', 'Struggled with focus and concentration')">😵 Focus issues</div>
+                        <div class="tag-button" onclick="addQuickTag('challenges_faced', 'Felt low energy throughout the day')">🔋 Low energy</div>
+                        <div class="tag-button" onclick="addQuickTag('challenges_faced', 'Too many interruptions and distractions')">📱 Too many distractions</div>
+                        <div class="tag-button" onclick="addQuickTag('challenges_faced', 'Procrastinated on important tasks')">⏰ Procrastination</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="col-lg-4">
+            <!-- Additional Metrics -->
+            <div class="log-section">
+                <h6 class="mb-3">
+                    <i class="fas fa-sliders-h text-info"></i> Additional Metrics
+                </h6>
+                
+                <!-- Sleep Quality -->
+                <div class="mb-3">
+                    <label class="form-label">Sleep Quality (1-5)</label>
+                    <div class="rating-container">
+                        <small>Poor</small>
+                        <input type="range" name="sleep_quality" class="form-range rating-slider" 
+                               min="1" max="5" value="{{ daily_log.sleep_quality|default:3 }}" 
+                               id="sleep_quality">
+                        <small>Excellent</small>
+                        <div class="rating-value" id="sleep_quality_value">{{ daily_log.sleep_quality|default:3 }}</div>
+                    </div>
+                </div>
+                
+                <!-- Stress Level -->
+                <div class="mb-3">
+                    <label class="form-label">Stress Level (1-5)</label>
+                    <div class="rating-container">
+                        <small>Low</small>
+                        <input type="range" name="stress_level" class="form-range rating-slider" 
+                               min="1" max="5" value="{{ daily_log.stress_level|default:3 }}" 
+                               id="stress_level">
+                        <small>High</small>
+                        <div class="rating-value" id="stress_level_value">{{ daily_log.stress_level|default:3 }}</div>
+                    </div>
+                </div>
+                
+                <!-- Environment Rating -->
+                <div class="mb-3">
+                    <label class="form-label">Environment Quality (1-5)</label>
+                    <div class="rating-container">
+                        <small>Poor</small>
+                        <input type="range" name="environment_rating" class="form-range rating-slider" 
+                               min="1" max="5" value="{{ daily_log.environment_rating|default:3 }}" 
+                               id="environment_rating">
+                        <small>Perfect</small>
+                        <div class="rating-value" id="environment_rating_value">{{ daily_log.environment_rating|default:3 }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Energy Log -->
+            <div class="log-section">
+                <h6 class="mb-3">
+                    <i class="fas fa-battery-half text-warning"></i> Current Energy
+                </h6>
+                <div class="mb-3">
+                    <label class="form-label">How's your energy right now? (1-10)</label>
+                    <div class="rating-container">
+                        <input type="range" name="current_energy" class="form-range rating-slider" 
+                               min="1" max="10" value="5" id="current_energy">
+                        <div class="rating-value" id="current_energy_value">5</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Energy notes (optional)</label>
+                    <textarea name="energy_notes" class="form-control" rows="2" 
+                              placeholder="What's affecting your energy right now?"></textarea>
+                </div>
+            </div>
+
+            <!-- Save Section -->
+            <div class="log-section">
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-save"></i> Save Daily Log
+                    </button>
+                    
+                    {% if not is_today %}
+                    <button type="button" class="btn btn-outline-secondary" onclick="goToToday()">
+                        <i class="fas fa-calendar-day"></i> Go to Today
+                    </button>
+                    {% endif %}
+                </div>
+                
+                <div class="mt-3 text-center">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i> 
+                        Auto-saves as you type
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Save Indicator -->
+<div class="save-indicator" id="saveIndicator">
+    <i class="fas fa-check"></i> Auto-saved
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialize all sliders and their value displays
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all range sliders
+    const sliders = document.querySelectorAll('input[type="range"]');
+    sliders.forEach(slider => {
+        const valueDisplay = document.getElementById(slider.id + '_value');
+        if (valueDisplay) {
+            // Set initial value
+            valueDisplay.textContent = slider.value;
+            updateRatingStyle(valueDisplay, slider.value, slider.max);
+            
+            // Update on change
+            slider.addEventListener('input', function() {
+                valueDisplay.textContent = this.value;
+                updateRatingStyle(valueDisplay, this.value, this.max);
+            });
+        }
+    });
+    
+    // Initialize mood emoji selection
+    const savedMood = document.getElementById('mood_rating').value;
+    if (savedMood) {
+        document.querySelector(`[data-mood="${savedMood}"]`).classList.add('active');
+    }
+});
+
+// Update rating display style based on value
+function updateRatingStyle(element, value, max) {
+    element.classList.remove('rating-excellent', 'rating-good', 'rating-fair', 'rating-poor');
+    
+    const percentage = (value / max) * 100;
+    if (percentage >= 80) {
+        element.classList.add('rating-excellent');
+    } else if (percentage >= 60) {
+        element.classList.add('rating-good');
+    } else if (percentage >= 40) {
+        element.classList.add('rating-fair');
+    } else {
+        element.classList.add('rating-poor');
+    }
+}
+
+// Mood emoji selection
+document.querySelectorAll('.mood-emoji').forEach(emoji => {
+    emoji.addEventListener('click', function() {
+        // Remove active from all
+        document.querySelectorAll('.mood-emoji').forEach(e => e.classList.remove('active'));
+        
+        // Add active to clicked
+        this.classList.add('active');
+        
+        // Update hidden input
+        document.getElementById('mood_rating').value = this.dataset.mood;
+        
+        // Auto-save
+        autoSave();
+    });
+});
+
+// Quick tag functionality
+function addQuickTag(fieldName, text) {
+    const textarea = document.querySelector(`[name="${fieldName}"]`);
+    const currentValue = textarea.value.trim();
+    
+    if (currentValue && !currentValue.endsWith('\n')) {
+        textarea.value = currentValue + '\n• ' + text;
+    } else {
+        textarea.value = currentValue + '• ' + text;
+    }
+    
+    // Auto-save
+    autoSave();
+    
+    // Visual feedback
+    event.target.style.background = '#28a745';
+    event.target.style.color = 'white';
+    setTimeout(() => {
+        event.target.style.background = '';
+        event.target.style.color = '';
+    }, 1000);
+}
+
+// Auto-save functionality
+let autoSaveTimer;
+function autoSave() {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+        const formData = new FormData(document.getElementById('dailyLogForm'));
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                showSaveIndicator();
+            }
+        })
+        .catch(error => console.log('Auto-save failed:', error));
+    }, 2000); // Save 2 seconds after last change
+}
+
+// Show save indicator
+function showSaveIndicator() {
+    const indicator = document.getElementById('saveIndicator');
+    indicator.classList.add('show');
+    setTimeout(() => {
+        indicator.classList.remove('show');
+    }, 2000);
+}
+
+// Auto-save on input changes
+document.querySelectorAll('input, textarea, select').forEach(input => {
+    input.addEventListener('input', autoSave);
+    input.addEventListener('change', autoSave);
+});
+
+// Go to today function
+function goToToday() {
+    window.location.href = '{% url "dashboard:daily_log" %}';
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + S to save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        document.getElementById('dailyLogForm').submit();
+    }
+    
+    // Ctrl/Cmd + → for next day (if available)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+        const nextLink = document.querySelector('a:contains("Next")');
+        if (nextLink) {
+            e.preventDefault();
+            nextLink.click();
+        }
+    }
+    
+    // Ctrl/Cmd + ← for previous day (if available)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowLeft') {
+        const prevLink = document.querySelector('a:contains("Previous")');
+        if (prevLink) {
+            e.preventDefault();
+            prevLink.click();
+        }
+    }
+});
+
+// Form validation before submit
+document.getElementById('dailyLogForm').addEventListener('submit', function(e) {
+    // Ensure mood rating is set
+    const moodRating = document.getElementById('mood_rating').value;
+    if (!moodRating) {
+        e.preventDefault();
+        showToast('Please select your mood rating', 'error');
+        document.querySelector('.mood-emoji').scrollIntoView();
+        return;
+    }
+    
+    showToast('Daily log saved successfully!', 'success');
+});
+
+// Quick stats calculation
+function updateQuickStats() {
+    const adherence = parseInt(document.querySelector('[name="adherence_score"]').value);
+    const mood = parseInt(document.getElementById('mood_rating').value);
+    const energy = parseInt(document.querySelector('[name="energy_morning"]').value);
+    
+    // You could add a small stats display here
+    console.log('Quick stats:', { adherence, mood, energy });
+}
+
+// Motivational messages based on input
+document.querySelector('[name="adherence_score"]').addEventListener('change', function() {
+    const score = parseInt(this.value);
+    if (score >= 8) {
+        setTimeout(() => showToast('Excellent adherence! You\'re crushing it! 🔥', 'success'), 500);
+    } else if (score <= 4) {
+        setTimeout(() => showToast('Tomorrow is a fresh start. You\'ve got this! 💪', 'info'), 500);
+    }
+});
+</script>
+{% endblock %}

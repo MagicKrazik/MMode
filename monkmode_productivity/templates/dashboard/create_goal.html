@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Create Goal - MonkMode{% endblock %}
+
+{% block extra_css %}
+<style>
+    .create-goal-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .form-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        padding: 30px;
+    }
+    
+    .form-section {
+        margin-bottom: 30px;
+        padding-bottom: 25px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    
+    .section-title {
+        color: #667eea;
+        font-weight: 600;
+        margin-bottom: 15px;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        padding: 12px 30px;
+    }
+    
+    .priority-selector {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    
+    .priority-option {
+        flex: 1;
+        min-width: 80px;
+    }
+    
+    .priority-option input[type="radio"] {
+        display: none;
+    }
+    
+    .priority-option label {
+        display: block;
+        padding: 10px;
+        text-align: center;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .priority-option input[type="radio"]:checked + label {
+        border-color: #667eea;
+        background: #667eea;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="create-goal-header">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h1 class="mb-2">
+                <i class="fas fa-plus-circle"></i> Create New Goal
+            </h1>
+            <p class="mb-0 opacity-75">Define your Monk Mode objective and start your focused journey</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'dashboard:goals_list' %}" class="btn btn-outline-light">
+                <i class="fas fa-arrow-left"></i> Back to Goals
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Form -->
+<div class="form-card">
+    <form method="post">
+        {% csrf_token %}
+        
+        <!-- Basic Information -->
+        <div class="form-section">
+            <h5 class="section-title">
+                <i class="fas fa-info-circle"></i> Basic Information
+            </h5>
+            
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <label class="form-label">Goal Title *</label>
+                        <input type="text" name="title" class="form-control" required
+                               placeholder="e.g., Master Python Programming, Write My Novel, Get in Shape">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Priority Level *</label>
+                        <div class="priority-selector">
+                            {% for i in "12345" %}
+                            <div class="priority-option">
+                                <input type="radio" name="priority_level" value="{{ i }}" id="priority{{ i }}" 
+                                       {% if i == "3" %}checked{% endif %}>
+                                <label for="priority{{ i }}">{{ i }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">1 = Low, 5 = Highest</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Goal Description *</label>
+                <textarea name="description" class="form-control" rows="3" required
+                          placeholder="Describe what you want to achieve, why it's important to you, and what success looks like..."></textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Target Outcome *</label>
+                <textarea name="target_outcome" class="form-control" rows="2" required
+                          placeholder="Specific, measurable outcome you want to achieve (e.g., 'Complete 5 Python projects', 'Write 50,000 words')..."></textarea>
+            </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="form-section">
+            <h5 class="section-title">
+                <i class="fas fa-calendar-alt"></i> Timeline
+            </h5>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">Start Date *</label>
+                        <input type="date" name="start_date" class="form-control" required
+                               min="{% now 'Y-m-d' %}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">End Date *</label>
+                        <input type="date" name="end_date" class="form-control" required
+                               min="{% now 'Y-m-d' %}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Estimated Effort (Hours)</label>
+                <input type="number" name="estimated_effort_hours" class="form-control" 
+                       min="1" max="10000" placeholder="Total hours you estimate this will take">
+                <small class="text-muted">Optional: Helps with scheduling and planning</small>
+            </div>
+        </div>
+
+        <!-- Support Settings -->
+        <div class="form-section">
+            <h5 class="section-title">
+                <i class="fas fa-users"></i> Support & Motivation
+            </h5>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-check mb-3">
+                        <input type="checkbox" name="support_network_enabled" class="form-check-input" 
+                               id="supportNetwork" checked>
+                        <label class="form-check-label" for="supportNetwork">
+                            <strong>Enable Support Network</strong>
+                            <div class="small text-muted">
+                                Allow friends and family to receive updates and help keep you accountable
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check mb-3">
+                        <input type="checkbox" name="motivation_reminders_enabled" class="form-check-input" 
+                               id="motivationReminders" checked>
+                        <label class="form-check-label" for="motivationReminders">
+                            <strong>Enable Motivation Reminders</strong>
+                            <div class="small text-muted">
+                                Receive personalized motivation and encouragement
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="text-center">
+            <button type="submit" class="btn btn-primary btn-lg me-3">
+                <i class="fas fa-rocket"></i> Create Goal & Start Journey
+            </button>
+            <a href="{% url 'dashboard:goals_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-times"></i> Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-calculate end date based on start date
+document.querySelector('[name="start_date"]').addEventListener('change', function() {
+    const startDate = new Date(this.value);
+    const endDateInput = document.querySelector('[name="end_date"]');
+    
+    if (startDate) {
+        // Suggest end date 30 days later
+        const suggestedEndDate = new Date(startDate);
+        suggestedEndDate.setDate(suggestedEndDate.getDate() + 30);
+        
+        const endDateString = suggestedEndDate.toISOString().split('T')[0];
+        if (!endDateInput.value) {
+            endDateInput.value = endDateString;
+        }
+        
+        // Set minimum end date
+        endDateInput.min = this.value;
+    }
+});
+
+// Form validation
+document.querySelector('form').addEventListener('submit', function(e) {
+    const startDate = new Date(document.querySelector('[name="start_date"]').value);
+    const endDate = new Date(document.querySelector('[name="end_date"]').value);
+    
+    if (endDate <= startDate) {
+        e.preventDefault();
+        alert('End date must be after start date');
+        return false;
+    }
+    
+    const title = document.querySelector('[name="title"]').value.trim();
+    if (title.length < 5) {
+        e.preventDefault();
+        alert('Goal title must be at least 5 characters long');
+        return false;
+    }
+});
+
+// Character counters
+document.querySelector('[name="description"]').addEventListener('input', function() {
+    const length = this.value.length;
+    const maxLength = 500;
+    
+    if (!this.nextElementSibling || !this.nextElementSibling.classList.contains('char-counter')) {
+        const counter = document.createElement('small');
+        counter.className = 'char-counter text-muted';
+        this.parentNode.appendChild(counter);
+    }
+    
+    const counter = this.parentNode.querySelector('.char-counter');
+    counter.textContent = `${length}/${maxLength} characters`;
+    
+    if (length > maxLength * 0.9) {
+        counter.classList.add('text-warning');
+    } else {
+        counter.classList.remove('text-warning');
+    }
+});
+</script>
+{% endblock %}

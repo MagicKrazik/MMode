@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Goals - MonkMode{% endblock %}
+
+{% block extra_css %}
+<style>
+    .goals-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .goal-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        overflow: hidden;
+        transition: transform 0.3s ease;
+    }
+    
+    .goal-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    .goal-status-active { border-left: 4px solid #28a745; }
+    .goal-status-completed { border-left: 4px solid #6c757d; }
+    .goal-status-draft { border-left: 4px solid #ffc107; }
+    .goal-status-archived { border-left: 4px solid #dc3545; }
+    
+    .progress-bar {
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 10px 0;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+        transition: width 0.3s ease;
+    }
+    
+    .filter-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="goals-header">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h1 class="mb-2">
+                <i class="fas fa-bullseye"></i> Your Goals
+            </h1>
+            <p class="mb-0 opacity-75">Track and manage your Monk Mode objectives</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'dashboard:create_goal' %}" class="btn btn-light btn-lg">
+                <i class="fas fa-plus"></i> New Goal
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-card">
+    <form method="get" class="row align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">Status Filter</label>
+            <select name="status" class="form-select">
+                <option value="">All Goals</option>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Draft</option>
+                <option value="archived" {% if status_filter == 'archived' %}selected{% endif %}>Archived</option>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Search Goals</label>
+            <input type="text" name="search" class="form-control" 
+                   placeholder="Search by title or description..." 
+                   value="{{ search_query }}">
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">
+                <i class="fas fa-search"></i> Filter
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Goals List -->
+{% if page_obj %}
+    {% for goal in page_obj %}
+    <div class="goal-card goal-status-{{ goal.current_status }}">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h5 class="mb-2">
+                        <a href="{% url 'dashboard:goal_detail' goal.id %}" class="text-decoration-none">
+                            {{ goal.title }}
+                        </a>
+                        <span class="badge bg-{{ goal.current_status|default:'secondary' }} ms-2">
+                            {{ goal.get_current_status_display }}
+                        </span>
+                    </h5>
+                    <p class="text-muted mb-2">{{ goal.description|truncatewords:20 }}</p>
+                    <div class="small text-muted">
+                        <i class="fas fa-calendar"></i> 
+                        {{ goal.start_date|date:"M j" }} - {{ goal.end_date|date:"M j, Y" }}
+                        <span class="ms-3">
+                            <i class="fas fa-star"></i> 
+                            Priority: {{ goal.priority_level }}/5
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-end">
+                        <div class="h4 mb-0">{{ goal.completion_percentage|floatformat:0 }}%</div>
+                        <small class="text-muted">Complete</small>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {{ goal.completion_percentage }}%"></div>
+                    </div>
+                    <div class="mt-2">
+                        <a href="{% url 'dashboard:goal_detail' goal.id %}" class="btn btn-sm btn-outline-primary me-2">
+                            View Details
+                        </a>
+                        {% if goal.current_status == 'active' %}
+                        <a href="{% url 'dashboard:ai_chat' goal.id %}" class="btn btn-sm btn-outline-success">
+                            <i class="fas fa-robot"></i> AI Coach
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav>
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}page={{ page_obj.previous_page_number }}">
+                        Previous
+                    </a>
+                </li>
+            {% endif %}
+            
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+            
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}page={{ page_obj.next_page_number }}">
+                        Next
+                    </a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+{% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-bullseye fa-4x text-muted mb-3"></i>
+        <h4>No Goals Found</h4>
+        <p class="text-muted">
+            {% if search_query or status_filter %}
+                No goals match your current filters. Try adjusting your search.
+            {% else %}
+                Start your Monk Mode journey by creating your first goal.
+            {% endif %}
+        </p>
+        <a href="{% url 'dashboard:create_goal' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Create Your First Goal
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

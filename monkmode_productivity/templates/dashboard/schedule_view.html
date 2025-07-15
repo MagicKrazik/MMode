@@ -1,0 +1,607 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Schedule - {{ period.period_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .schedule-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .schedule-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .day-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        margin-bottom: 25px;
+        overflow: hidden;
+        transition: transform 0.3s ease;
+    }
+    
+    .day-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    .day-header {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+        padding: 20px;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .current-day {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    }
+    
+    .activity-item {
+        padding: 20px;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background-color 0.3s ease;
+    }
+    
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    
+    .activity-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .activity-completed {
+        background: #f8fff8;
+        border-left: 4px solid #28a745;
+    }
+    
+    .activity-pending {
+        background: #fff8f0;
+        border-left: 4px solid #ffc107;
+    }
+    
+    .activity-overdue {
+        background: #fff5f5;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .activity-time {
+        font-weight: 600;
+        color: #667eea;
+        min-width: 120px;
+        font-size: 0.95rem;
+    }
+    
+    .activity-details {
+        flex: 1;
+        margin: 0 20px;
+    }
+    
+    .activity-type {
+        font-weight: 600;
+        margin-bottom: 5px;
+        font-size: 1.1rem;
+    }
+    
+    .activity-description {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+    }
+    
+    .activity-meta {
+        display: flex;
+        gap: 15px;
+        font-size: 0.8rem;
+        color: #888;
+    }
+    
+    .activity-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 120px;
+    }
+    
+    .btn-complete {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.85rem;
+    }
+    
+    .btn-complete:hover {
+        background: #218838;
+        transform: translateY(-1px);
+    }
+    
+    .btn-edit {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.3s ease;
+        font-size: 0.8rem;
+    }
+    
+    .btn-edit:hover {
+        background: #5a6268;
+    }
+    
+    .progress-bar {
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 10px;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+        transition: width 0.3s ease;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        text-align: center;
+        transition: transform 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-3px);
+    }
+    
+    .stat-number {
+        font-size: 2em;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 5px;
+    }
+    
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .no-activities {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+        font-style: italic;
+    }
+    
+    .floating-action {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        transition: transform 0.3s ease;
+        z-index: 1000;
+    }
+    
+    .floating-action:hover {
+        transform: scale(1.1);
+    }
+    
+    .energy-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .energy-low { background: #dc3545; }
+    .energy-medium { background: #ffc107; }
+    .energy-high { background: #28a745; }
+    
+    .priority-badge {
+        background: #e9ecef;
+        color: #495057;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .priority-high { background: #f8d7da; color: #721c24; }
+    .priority-medium { background: #fff3cd; color: #856404; }
+    
+    @media (max-width: 768px) {
+        .schedule-container {
+            padding: 10px;
+        }
+        
+        .activity-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .activity-actions {
+            width: 100%;
+            flex-direction: row;
+            justify-content: flex-end;
+        }
+        
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="schedule-container">
+    <!-- Header Section -->
+    <div class="schedule-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="mb-2">
+                    <i class="fas fa-calendar-alt"></i> {{ period.period_name }}
+                </h1>
+                <p class="mb-2 opacity-75">{{ period.goal.title }}</p>
+                <div class="progress-bar">
+                    {% if completion_percentage %}
+                        <div class="progress-fill" style="width: {{ completion_percentage|floatformat:0 }}%"></div>
+                    {% endif %}
+                </div>
+                <small class="opacity-75">
+                    <i class="fas fa-calendar"></i> 
+                    {{ period.start_date|date:"M j" }} to {{ period.end_date|date:"M j, Y" }}
+                </small>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group" role="group">
+                    <a href="{% url 'dashboard:goal_detail' period.goal.id %}" class="btn btn-outline-light">
+                        <i class="fas fa-arrow-left"></i> Back to Goal
+                    </a>
+                    <a href="{% url 'dashboard:ai_chat' period.goal.id %}" class="btn btn-outline-light">
+                        <i class="fas fa-robot"></i> AI Coach
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_days }}</div>
+            <div class="stat-label">Total Days</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ current_day|default:0 }}</div>
+            <div class="stat-label">Current Day</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ completed_activities }}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ completion_percentage|floatformat:0 }}%</div>
+            <div class="stat-label">Progress</div>
+        </div>
+    </div>
+
+    <!-- Schedule Days -->
+    {% if activities_by_day %}
+        {% for day, activities in activities_by_day.items %}
+            <div class="day-card">
+                <div class="day-header {% if day == current_day %}current-day{% endif %}">
+                    <div>
+                        <h3 class="mb-0">Day {{ day }}</h3>
+                        {% if day == current_day %}
+                            <small><i class="fas fa-star"></i> Today</small>
+                        {% elif day < current_day %}
+                            <small><i class="fas fa-check"></i> Past</small>
+                        {% else %}
+                            <small><i class="fas fa-clock"></i> Upcoming</small>
+                        {% endif %}
+                    </div>
+                    <div class="text-end">
+                        {% with completed_count=0 total_count=activities|length %}
+                            {% for activity in activities %}
+                                {% if activity.is_completed %}
+                                    {% with completed_count=completed_count|add:1 %}{% endwith %}
+                                {% endif %}
+                            {% endfor %}
+                            <div class="fw-bold">{{ completed_count }} / {{ total_count }}</div>
+                            <small>Activities</small>
+                        {% endwith %}
+                    </div>
+                </div>
+                
+                {% for activity in activities %}
+                    <div class="activity-item {% if activity.is_completed %}activity-completed{% elif day < current_day %}activity-overdue{% else %}activity-pending{% endif %}">
+                        <div class="activity-time">
+                            <i class="fas fa-clock"></i>
+                            {{ activity.start_time|time:"H:i" }} - {{ activity.end_time|time:"H:i" }}
+                        </div>
+                        
+                        <div class="activity-details">
+                            <div class="activity-type">
+                                <i class="fas fa-{{ activity.activity_type.name|lower|cut:' '|add:'-icon'|default:'tasks' }}"></i>
+                                {{ activity.activity_type.name }}
+                            </div>
+                            
+                            {% if activity.description %}
+                                <div class="activity-description">{{ activity.description }}</div>
+                            {% endif %}
+                            
+                            <div class="activity-meta">
+                                <span>
+                                    <i class="fas fa-stopwatch"></i>
+                                    {{ activity.duration_minutes }} min
+                                </span>
+                                
+                                <span>
+                                    <span class="energy-indicator {% if activity.energy_required >= 7 %}energy-high{% elif activity.energy_required >= 4 %}energy-medium{% else %}energy-low{% endif %}"></span>
+                                    Energy: {{ activity.energy_required }}/10
+                                </span>
+                                
+                                {% if activity.priority_score %}
+                                    <span class="priority-badge {% if activity.priority_score >= 8 %}priority-high{% elif activity.priority_score >= 6 %}priority-medium{% endif %}">
+                                        Priority: {{ activity.priority_score|floatformat:1 }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="activity-actions">
+                            {% if not activity.is_completed %}
+                                <button type="button" class="btn-complete" onclick="quickCompleteActivity({{ activity.id }})">
+                                    <i class="fas fa-check"></i> Complete
+                                </button>
+                                <button type="button" class="btn-edit" onclick="editActivity({{ activity.id }})">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                            {% else %}
+                                <div class="text-success text-center">
+                                    <i class="fas fa-check-circle fa-2x"></i>
+                                    <div class="small mt-1">
+                                        {% if activity.completed_at %}
+                                            {{ activity.completed_at|date:"M j, H:i" }}
+                                        {% else %}
+                                            Completed
+                                        {% endif %}
+                                    </div>
+                                    {% if activity.completion_quality %}
+                                        <div class="small">
+                                            Quality: {{ activity.completion_quality }}/5
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="day-card">
+            <div class="no-activities">
+                <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                <h5>No Activities Scheduled</h5>
+                <p class="text-muted">This schedule period doesn't have any activities yet.</p>
+                <a href="{% url 'dashboard:ai_chat' period.goal.id %}" class="btn btn-primary">
+                    <i class="fas fa-robot"></i> Generate Activities with AI
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Floating Action Button -->
+<button class="floating-action" onclick="quickActions()" title="Quick Actions">
+    <i class="fas fa-bolt"></i>
+</button>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Quick Activity Completion
+function quickCompleteActivity(activityId) {
+    if (confirm('Mark this activity as completed?')) {
+        fetch(`{% url 'dashboard:api_quick_complete' 0 %}`.replace('0', activityId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update UI to show completion
+                const activityItem = document.querySelector(`[onclick="quickCompleteActivity(${activityId})"]`).closest('.activity-item');
+                activityItem.classList.remove('activity-pending', 'activity-overdue');
+                activityItem.classList.add('activity-completed');
+                
+                // Replace actions with completion indicator
+                const actionsDiv = activityItem.querySelector('.activity-actions');
+                actionsDiv.innerHTML = `
+                    <div class="text-success text-center">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                        <div class="small mt-1">Just completed!</div>
+                    </div>
+                `;
+                
+                showToast('Activity completed! Great job! 🎉', 'success');
+                
+                // Update stats
+                updateStats();
+            } else {
+                showToast('Error completing activity', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error completing activity', 'error');
+        });
+    }
+}
+
+// Edit Activity (placeholder)
+function editActivity(activityId) {
+    showToast('Activity editing coming soon!', 'info');
+}
+
+// Quick Actions Menu
+function quickActions() {
+    const actions = [
+        'Log Current Energy',
+        'Add Quick Note',
+        'Request Support',
+        'View Goal Progress'
+    ];
+    
+    const action = prompt('Quick Actions:\n1. Log Current Energy\n2. Add Quick Note\n3. Request Support\n4. View Goal Progress\n\nEnter number (1-4):');
+    
+    switch(action) {
+        case '1':
+            quickEnergyLog();
+            break;
+        case '2':
+            quickNote();
+            break;
+        case '3':
+            emergencySupport();
+            break;
+        case '4':
+            window.location.href = '{% url "dashboard:goal_detail" period.goal.id %}';
+            break;
+        default:
+            showToast('Invalid selection', 'error');
+    }
+}
+
+// Quick Note Function
+function quickNote() {
+    const note = prompt('Quick note for today:');
+    if (note && note.trim()) {
+        // You could save this to daily log or create a quick note model
+        showToast('Note saved! 📝', 'success');
+        console.log('Quick note:', note);
+    }
+}
+
+// Update Statistics
+function updateStats() {
+    // Recalculate completion stats
+    const totalActivities = document.querySelectorAll('.activity-item').length;
+    const completedActivities = document.querySelectorAll('.activity-completed').length;
+    const percentage = totalActivities > 0 ? Math.round((completedActivities / totalActivities) * 100) : 0;
+    
+    // Update stat cards
+    const statCards = document.querySelectorAll('.stat-number');
+    if (statCards.length >= 3) {
+        statCards[2].textContent = completedActivities; // Completed activities
+        statCards[3].textContent = percentage + '%'; // Progress percentage
+    }
+    
+    // Update progress bar
+    const progressFill = document.querySelector('.progress-fill');
+    if (progressFill) {
+        progressFill.style.width = percentage + '%';
+    }
+}
+
+// Auto-refresh schedule every 10 minutes
+setInterval(function() {
+    if (document.visibilityState === 'visible') {
+        location.reload();
+    }
+}, 600000); // 10 minutes
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Space to complete first pending activity
+    if (e.code === 'Space' && !e.target.matches('input, textarea')) {
+        e.preventDefault();
+        const firstPending = document.querySelector('.activity-pending .btn-complete');
+        if (firstPending) {
+            firstPending.click();
+        }
+    }
+    
+    // Ctrl + A for quick actions
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        quickActions();
+    }
+});
+
+// Add visual feedback for activity completion
+document.addEventListener('DOMContentLoaded', function() {
+    // Animate completed activities
+    const completedActivities = document.querySelectorAll('.activity-completed');
+    completedActivities.forEach(activity => {
+        activity.style.opacity = '0.8';
+    });
+    
+    // Highlight current day
+    const currentDayCard = document.querySelector('.current-day');
+    if (currentDayCard) {
+        currentDayCard.closest('.day-card').style.border = '2px solid #fa709a';
+    }
+});
+
+// Progressive enhancement: Add touch support for mobile
+if ('ontouchstart' in window) {
+    document.querySelectorAll('.activity-item').forEach(item => {
+        item.addEventListener('touchstart', function() {
+            this.style.backgroundColor = '#f8f9fa';
+        });
+        
+        item.addEventListener('touchend', function() {
+            setTimeout(() => {
+                this.style.backgroundColor = '';
+            }, 200);
+        });
+    });
+}
+</script>
+{% endblock %}

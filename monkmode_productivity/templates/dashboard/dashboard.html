@@ -3,94 +3,304 @@
 
 {% block title %}Dashboard - MonkMode{% endblock %}
 
+{% block extra_css %}
+<style>
+    .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .metric-card {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+        border: none;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .metric-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+    
+    .metric-label {
+        color: #666;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .activity-card {
+        transition: all 0.3s ease;
+        border: none;
+        border-radius: 12px;
+        margin-bottom: 15px;
+        overflow: hidden;
+    }
+    
+    .activity-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .activity-completed {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        border-left: 4px solid #28a745;
+    }
+    
+    .activity-pending {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+        border-left: 4px solid #ffc107;
+    }
+    
+    .goal-progress {
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 10px 0;
+    }
+    
+    .goal-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+        transition: width 0.3s ease;
+    }
+    
+    .quick-action-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    
+    .quick-action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+    
+    .motivation-card {
+        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+        border: none;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .energy-indicator {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+    }
+    
+    .energy-high { background: #28a745; }
+    .energy-medium { background: #ffc107; }
+    .energy-low { background: #dc3545; }
+    
+    .focus-recommendation {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border: none;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 15px;
+    }
+    
+    @media (max-width: 768px) {
+        .dashboard-header {
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .metric-card {
+            margin-bottom: 20px;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
+<!-- Dashboard Header -->
+<div class="dashboard-header">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h1 class="mb-2">
+                <i class="fas fa-mountain"></i> 
+                Welcome back, {{ user.first_name|default:user.username }}!
+            </h1>
+            <p class="mb-0 opacity-75">
+                {% if active_goals %}
+                    You have {{ active_goals|length }} active goal{{ active_goals|length|pluralize }} in progress
+                {% else %}
+                    Ready to start your Monk Mode journey?
+                {% endif %}
+            </p>
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="text-white">
+                <i class="fas fa-calendar-day"></i> {{ today|date:"l, F j, Y" }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Key Metrics -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-number text-primary">{{ metrics.active_goals }}</div>
+            <div class="metric-label">Active Goals</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-number text-success">{{ metrics.completed_goals }}</div>
+            <div class="metric-label">Completed Goals</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-number text-warning">{{ metrics.current_streak }}</div>
+            <div class="metric-label">Day Streak</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="metric-card">
+            <div class="metric-number text-info">{{ metrics.avg_mood_week|floatformat:1 }}/5</div>
+            <div class="metric-label">Avg Mood (7d)</div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
-    <div class="col-12">
-        <h1>Welcome back, {{ user.first_name|default:user.username }}!</h1>
-    </div>
-</div>
-
-<div class="row mt-4">
-<!-- Active Goal Card -->
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5>Active Goal</h5>
+    <!-- Left Column -->
+    <div class="col-lg-8">
+        <!-- Active Goals -->
+        {% if active_goals %}
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-bullseye text-primary"></i> Active Goals
+                </h5>
             </div>
             <div class="card-body">
-                {% if active_goal %}
-                    <h6>{{ active_goal.title }}</h6>
-                    <p class="text-muted">{{ active_goal.description|truncatewords:20 }}</p>
-                    <p><strong>Timeline:</strong> {{ active_goal.start_date }} to {{ active_goal.end_date }}</p>
-                    <a href="{% url 'core:goal_detail' active_goal.id %}" class="btn btn-primary btn-sm">View Details</a>
-                {% else %}
-                    <p>No active goal set.</p>
-                    <a href="{% url 'core:goal_create' %}" class="btn btn-primary">Create Your First Goal</a>
-                {% endif %}
+                {% for goal in active_goals %}
+                <div class="row align-items-center mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                    <div class="col-md-8">
+                        <h6 class="mb-1">
+                            <a href="{% url 'dashboard:goal_detail' goal.id %}" class="text-decoration-none">
+                                {{ goal.title }}
+                            </a>
+                        </h6>
+                        <p class="text-muted mb-2 small">{{ goal.description|truncatewords:15 }}</p>
+                        <small class="text-muted">
+                            <i class="fas fa-calendar"></i> 
+                            {{ goal.start_date }} to {{ goal.end_date }}
+                        </small>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-end">
+                            <span class="badge bg-primary">{{ goal.completion_percentage|floatformat:0 }}%</span>
+                        </div>
+                        <div class="goal-progress mt-2">
+                            <div class="goal-progress-fill" style="width: {{ goal.completion_percentage }}%"></div>
+                        </div>
+                        <div class="mt-2">
+                            <a href="{% url 'dashboard:goal_detail' goal.id %}" class="btn btn-sm btn-outline-primary me-2">
+                                View Details
+                            </a>
+                            {% if goal.periods.all %}
+                                {% with active_period=goal.periods.first %}
+                                <a href="{% url 'dashboard:schedule_view' active_period.id %}" class="btn btn-sm btn-outline-success">
+                                    Schedule
+                                </a>
+                                {% endwith %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
-    </div>
-
-<!-- Today's Progress Card -->
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5>Today's Progress</h5>
-            </div>
-            <div class="card-body">
-                {% if total_activities > 0 %}
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span>{{ completed_activities }} of {{ total_activities }} activities completed</span>
-                        <span class="badge bg-primary">{{ completion_percentage|floatformat:0 }}%</span>
-                    </div>
-                    <div class="progress mb-3">
-                        <div class="progress-bar" role="progressbar" style="width: {{ completion_percentage }}%"
-                             aria-valuenow="{{ completion_percentage }}" aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-                    {% if active_period %}
-                        <a href="{% url 'core:schedule_view' active_period.id %}" class="btn btn-outline-primary btn-sm">View Schedule</a>
-                    {% endif %}
-                {% else %}
-                    <p>No activities scheduled for today.</p>
-                    {% if active_goal %}
-                        <a href="{% url 'core:generate_schedule' active_goal.id %}" class="btn btn-primary btn-sm">Generate Schedule</a>
-                    {% endif %}
-                {% endif %}
+        {% else %}
+        <div class="card mb-4">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-bullseye fa-3x text-muted mb-3"></i>
+                <h5>No Active Goals</h5>
+                <p class="text-muted">Start your Monk Mode journey by creating your first goal</p>
+                <a href="{% url 'dashboard:create_goal' %}" class="quick-action-btn">
+                    <i class="fas fa-plus"></i> Create Your First Goal
+                </a>
             </div>
         </div>
-    </div>
-</div>
+        {% endif %}
 
-<!-- Today's Activities -->
-{% if today_activities %}
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5>Today's Activities</h5>
+        <!-- Today's Activities -->
+        {% if today_activities %}
+        <div class="card mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-list-check text-success"></i> Today's Activities
+                </h5>
+                <span class="badge bg-info">
+                    {{ today_activities|length }} scheduled
+                </span>
             </div>
             <div class="card-body">
                 <div class="row">
                     {% for activity in today_activities %}
-                    <div class="col-md-6 mb-3">
-                        <div class="card activity-card {% if activity.is_completed %}completed{% endif %}">
+                    <div class="col-md-6">
+                        <div class="activity-card {% if activity.is_completed %}activity-completed{% else %}activity-pending{% endif %}">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <h6>{{ activity.activity_type.name }}</h6>
-                                        <p class="text-muted mb-1">{{ activity.start_time }} - {{ activity.end_time }}</p>
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">
+                                            <i class="fas fa-{{ activity.activity_type.name|lower|cut:' '|add:'-icon'|default:'tasks' }}"></i>
+                                            {{ activity.activity_type.name }}
+                                        </h6>
+                                        <p class="text-muted mb-1 small">
+                                            <i class="fas fa-clock"></i> 
+                                            {{ activity.start_time|time:"H:i" }} - {{ activity.end_time|time:"H:i" }}
+                                            ({{ activity.duration_minutes }} min)
+                                        </p>
                                         {% if activity.description %}
-                                            <p class="small">{{ activity.description }}</p>
+                                            <p class="small mb-2">{{ activity.description|truncatewords:10 }}</p>
                                         {% endif %}
+                                        
+                                        <!-- Energy Indicator -->
+                                        <div class="mb-2">
+                                            <span class="energy-indicator {% if activity.energy_required >= 7 %}energy-high{% elif activity.energy_required >= 4 %}energy-medium{% else %}energy-low{% endif %}"></span>
+                                            <small class="text-muted">Energy: {{ activity.energy_required }}/10</small>
+                                            {% if activity.priority_score %}
+                                                <span class="ms-2 badge badge-sm bg-secondary">Priority: {{ activity.priority_score|floatformat:1 }}</span>
+                                            {% endif %}
+                                        </div>
                                     </div>
-                                    <div>
+                                    <div class="ms-3">
                                         {% if activity.is_completed %}
-                                            <span class="badge bg-success">✓ Done</span>
+                                            <div class="text-success">
+                                                <i class="fas fa-check-circle fa-2x"></i>
+                                                <div class="small mt-1">Done!</div>
+                                            </div>
                                         {% else %}
-                                            <form method="post" action="{% url 'core:mark_complete' activity.id %}" class="d-inline">
-                                                {% csrf_token %}
-                                                <button type="submit" class="btn btn-sm btn-outline-success">Mark Complete</button>
-                                            </form>
+                                            <button type="button" class="btn btn-sm btn-success" onclick="quickCompleteActivity({{ activity.id }})">
+                                                <i class="fas fa-check"></i> Complete
+                                            </button>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -101,56 +311,292 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
-{% endif %}
+        {% endif %}
 
-<!-- Quick Actions -->
-<div class="row mt-4">
-    <div class="col-12">
+        <!-- Recent Reflections -->
+        {% if recent_logs %}
         <div class="card">
-            <div class="card-header">
-                <h5>Quick Actions</h5>
-            </div>
-            <div class="card-body">
-                <a href="{% url 'core:daily_log' %}" class="btn btn-outline-primary me-2">Daily Reflection</a>
-                <a href="{% url 'core:goal_list' %}" class="btn btn-outline-secondary me-2">View All Goals</a>
-                {% if active_goal and not active_period %}
-                    <a href="{% url 'core:generate_schedule' active_goal.id %}" class="btn btn-outline-info">Generate Schedule</a>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Recent Reflections -->
-{% if recent_logs %}
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5>Recent Reflections</h5>
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-journal-whills text-info"></i> Recent Reflections
+                </h5>
             </div>
             <div class="card-body">
                 {% for log in recent_logs %}
-                <div class="mb-3 pb-2 border-bottom">
-                    <div class="d-flex justify-content-between">
-                        <strong>{{ log.log_date }}</strong>
-                        {% if log.adherence_score %}
-                            <span class="badge bg-info">Adherence: {{ log.adherence_score }}/10</span>
-                        {% endif %}
+                <div class="border-bottom mb-3 pb-3 {% if forloop.last %}border-0 mb-0 pb-0{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <strong class="text-primary">{{ log.log_date|date:"M j, Y" }}</strong>
+                        <div>
+                            {% if log.mood_rating %}
+                                <span class="badge bg-info me-1">Mood: {{ log.mood_rating }}/5</span>
+                            {% endif %}
+                            {% if log.adherence_score %}
+                                <span class="badge bg-success">Adherence: {{ log.adherence_score }}/10</span>
+                            {% endif %}
+                        </div>
                     </div>
-                    <p class="mt-1 mb-0">{{ log.reflection_text|truncatewords:15 }}</p>
+                    {% if log.reflection_text %}
+                        <p class="mb-2">{{ log.reflection_text|truncatewords:20 }}</p>
+                    {% endif %}
+                    {% if log.wins_of_the_day %}
+                        <div class="small text-success">
+                            <i class="fas fa-trophy"></i> {{ log.wins_of_the_day|truncatewords:15 }}
+                        </div>
+                    {% endif %}
                 </div>
                 {% endfor %}
+                <div class="text-center mt-3">
+                    <a href="{% url 'dashboard:daily_log' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-plus"></i> Add Today's Reflection
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-lg-4">
+        <!-- Energy Status -->
+        {% if latest_energy %}
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-battery-three-quarters text-warning"></i> Energy Status
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="flex-grow-1">
+                        <h4 class="mb-0">{{ latest_energy.energy_level }}/10</h4>
+                        <small class="text-muted">{{ latest_energy.timestamp|timesince }} ago</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="energy-indicator {% if latest_energy.energy_level >= 7 %}energy-high{% elif latest_energy.energy_level >= 4 %}energy-medium{% else %}energy-low{% endif %}"></span>
+                    </div>
+                </div>
+                
+                {% if energy_predictions %}
+                <div class="small">
+                    <strong>Next 6 hours:</strong>
+                    <div class="mt-2">
+                        {% for prediction in energy_predictions %}
+                        <div class="d-flex justify-content-between">
+                            <span>{{ prediction.predicted_for|time:"H:i" }}</span>
+                            <span class="text-muted">{{ prediction.predicted_energy|floatformat:1 }}/10</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="mt-3">
+                    <a href="{% url 'dashboard:energy_tracking' %}" class="btn btn-outline-warning btn-sm w-100">
+                        <i class="fas fa-chart-line"></i> View Energy Insights
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Daily Motivation -->
+        {% if daily_motivation %}
+        <div class="motivation-card">
+            <h6 class="text-dark">
+                <i class="fas fa-fire text-danger"></i> Daily Motivation
+            </h6>
+            {% if daily_motivation.message %}
+                <p class="mb-0 small">{{ daily_motivation.message|truncatewords:25 }}</p>
+            {% else %}
+                <p class="mb-0 small">Stay focused on your goals! Every small step counts toward your bigger vision.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Focus Recommendations -->
+        {% if focus_recommendations %}
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-crosshairs text-primary"></i> Focus Recommendations
+                </h6>
+            </div>
+            <div class="card-body">
+                {% if focus_recommendations.primary_focus %}
+                <div class="focus-recommendation">
+                    <strong class="text-primary">Top Priority:</strong>
+                    <div class="mt-1 small">{{ focus_recommendations.primary_focus.activity.description }}</div>
+                    <div class="mt-1">
+                        <span class="badge bg-primary">Score: {{ focus_recommendations.primary_focus.final_score|floatformat:1 }}</span>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if focus_recommendations.recommendations %}
+                <div class="small">
+                    {% for rec in focus_recommendations.recommendations %}
+                    <div class="mb-2">
+                        <i class="fas fa-lightbulb text-warning"></i> {{ rec|truncatewords:15 }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <div class="mt-3">
+                    <a href="{% url 'dashboard:priority_focus' %}" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="fas fa-crosshairs"></i> View All Priorities
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="fas fa-rocket text-success"></i> Quick Actions
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'dashboard:daily_log' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-journal-whills"></i> Daily Reflection
+                    </a>
+                    
+                    {% if active_goals %}
+                        <a href="{% url 'dashboard:ai_chat' active_goals.0.id %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-robot"></i> Chat with AI Coach
+                        </a>
+                    {% else %}
+                        <a href="{% url 'dashboard:ai_chat' %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-robot"></i> Chat with AI Coach
+                        </a>
+                    {% endif %}
+                    
+                    <a href="{% url 'dashboard:motivation_center' %}" class="btn btn-outline-warning btn-sm">
+                        <i class="fas fa-fire"></i> Motivation Center
+                    </a>
+                    
+                    <a href="{% url 'dashboard:support_network' %}" class="btn btn-outline-success btn-sm">
+                        <i class="fas fa-users"></i> Support Network
+                    </a>
+                    
+                    {% if active_goals and not current_period %}
+                        <a href="{% url 'dashboard:ai_chat' active_goals.0.id %}" class="btn btn-success btn-sm">
+                            <i class="fas fa-calendar-plus"></i> Generate Schedule
+                        </a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
 </div>
-{% endif %}
 
 {% endblock %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% block extra_js %}
+<script>
+// Quick Activity Completion
+function quickCompleteActivity(activityId) {
+    fetch(`/api/activities/${activityId}/quick-complete/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update UI to show completion
+            const activityCard = document.querySelector(`[onclick="quickCompleteActivity(${activityId})"]`).closest('.activity-card');
+            activityCard.classList.remove('activity-pending');
+            activityCard.classList.add('activity-completed');
+            
+            // Replace button with checkmark
+            const buttonContainer = document.querySelector(`[onclick="quickCompleteActivity(${activityId})"]`).parentElement;
+            buttonContainer.innerHTML = `
+                <div class="text-success">
+                    <i class="fas fa-check-circle fa-2x"></i>
+                    <div class="small mt-1">Done!</div>
+                </div>
+            `;
+            
+            showToast('Activity completed! Great job! 🎉', 'success');
+        } else {
+            showToast('Error completing activity', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Error completing activity', 'error');
+    });
+}
+
+// Auto-refresh dashboard every 5 minutes
+setInterval(function() {
+    // Only refresh if user is on dashboard and active
+    if (document.visibilityState === 'visible') {
+        fetch(window.location.href)
+        .then(response => response.text())
+        .then(html => {
+            // Update specific sections without full page reload
+            const parser = new DOMParser();
+            const newDoc = parser.parseFromString(html, 'text/html');
+            
+            // Update today's activities if they exist
+            const currentActivities = document.querySelector('.card-body .row');
+            const newActivities = newDoc.querySelector('.card-body .row');
+            if (currentActivities && newActivities) {
+                currentActivities.innerHTML = newActivities.innerHTML;
+            }
+        })
+        .catch(error => console.log('Auto-refresh failed:', error));
+    }
+}, 300000); // 5 minutes
+
+// Progressive Web App features
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function(error) {
+        console.log('ServiceWorker registration failed: ', error);
+    });
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + E for quick energy log
+    if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+        e.preventDefault();
+        quickEnergyLog();
+    }
+    
+    // Ctrl/Cmd + R for daily reflection
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+        e.preventDefault();
+        window.location.href = '{% url "dashboard:daily_log" %}';
+    }
+    
+    // Ctrl/Cmd + A for AI chat
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        window.location.href = '{% url "dashboard:ai_chat" %}';
+    }
+});
+
+// Add tooltip to explain keyboard shortcuts
+document.addEventListener('DOMContentLoaded', function() {
+    const shortcutInfo = document.createElement('div');
+    shortcutInfo.className = 'position-fixed bottom-0 start-0 p-2 small text-muted';
+    shortcutInfo.style.fontSize = '0.7rem';
+    shortcutInfo.innerHTML = 'Shortcuts: Ctrl+E (Energy), Ctrl+R (Reflection), Ctrl+A (AI Chat)';
+    document.body.appendChild(shortcutInfo);
+    
+    // Hide after 10 seconds
+    setTimeout(() => {
+        shortcutInfo.style.opacity = '0';
+        setTimeout(() => shortcutInfo.remove(), 1000);
+    }, 10000);
+});
+</script>
 {% endblock %}

@@ -4,6 +4,7 @@ from apps.core.models import EnergyLog, EnergyPrediction, UserDailyLog, Schedule
 from datetime import datetime, timedelta
 import logging
 import numpy as np
+import statistics 
 
 logger = logging.getLogger(__name__)
 

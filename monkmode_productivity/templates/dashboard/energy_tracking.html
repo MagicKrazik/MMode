@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Energy Tracking - MonkMode{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1><i class="fas fa-battery-three-quarters"></i> Energy Tracking</h1>
+            <p class="text-muted">Track your energy levels and optimize your schedule</p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Log Current Energy</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="log_energy">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Energy Level (1-10)</label>
+                            <input type="range" name="energy_level" class="form-range" 
+                                   min="1" max="10" value="5">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea name="notes" class="form-control" rows="2"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Log Energy
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Energy Insights</h5>
+                </div>
+                <div class="card-body">
+                    {% if energy_insights %}
+                        <div class="mb-2">
+                            <strong>Average Energy:</strong> {{ energy_insights.summary.average_energy }}/10
+                        </div>
+                        <div class="mb-2">
+                            <strong>Peak Hours:</strong>
+                            <ul class="small">
+                                {% for hour in energy_insights.peak_hours %}
+                                    <li>{{ hour }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Start logging your energy to see insights!</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

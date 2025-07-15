@@ -1,27 +1,14 @@
 {% extends 'base.html' %}
-
 {% block title %}Profile - MonkMode{% endblock %}
-
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h3>User Profile</h3>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Name:</strong> {{ user.first_name }} {{ user.last_name }}</p>
-                        <p><strong>Username:</strong> {{ user.username }}</p>
-                        <p><strong>Email:</strong> {{ user.email }}</p>
-                        <p><strong>Member since:</strong> {{ user.date_joined|date:"F d, Y" }}</p>
-                    </div>
-                </div>
-                <div class="mt-3">
-                    <a href="{% url 'dashboard:dashboard' %}" class="btn btn-primary">Back to Dashboard</a>
-                </div>
-            </div>
+<div class="container">
+    <h1>User Profile</h1>
+    <div class="card">
+        <div class="card-body">
+            <h5>{{ user.get_full_name|default:user.username }}</h5>
+            <p><strong>Username:</strong> {{ user.username }}</p>
+            <p><strong>Email:</strong> {{ user.email }}</p>
+            <p><strong>Joined:</strong> {{ user.date_joined|date:"F j, Y" }}</p>
         </div>
     </div>
 </div>

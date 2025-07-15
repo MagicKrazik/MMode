@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import logout
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
@@ -28,66 +29,87 @@ def dashboard(request):
     """Main dashboard view with comprehensive overview"""
     user = request.user
     
-    # Get active goals
-    active_goals = MonkModeGoal.objects.filter(user=user, current_status='active')
-    
-    # Get recent daily logs
-    recent_logs = UserDailyLog.objects.filter(user=user).order_by('-log_date')[:7]
-    
-    # Get today's activities if there's an active period
-    today_activities = []
-    current_period = None
-    if active_goals.exists():
-        active_goal = active_goals.first()
-        active_periods = active_goal.periods.filter(is_active=True)
-        if active_periods.exists():
-            current_period = active_periods.first()
-            today = timezone.now().date()
-            day_of_period = (today - current_period.start_date).days + 1
-            if day_of_period > 0:
-                today_activities = ScheduledActivity.objects.filter(
-                    monk_mode_period=current_period,
-                    day_of_period=day_of_period
-                ).order_by('start_time')
-    
-    # Get daily motivation
-    daily_motivation = MotivationService.get_daily_motivation(user, 'morning')
-    
-    # Get focus recommendations
-    focus_recommendations = PriorityEngine.get_focus_recommendations(user)
-    
-    # Get energy insights
     try:
-        latest_energy = EnergyLog.objects.filter(user=user).order_by('-timestamp').first()
-        energy_prediction = EnergyManagementService.predict_energy_levels(user, hours_ahead=12)
-    except:
+        # Get active goals
+        active_goals = MonkModeGoal.objects.filter(user=user, current_status='active')
+        
+        # Get recent daily logs
+        recent_logs = UserDailyLog.objects.filter(user=user).order_by('-log_date')[:7]
+        
+        # Get today's activities if there's an active period
+        today_activities = []
+        current_period = None
+        if active_goals.exists():
+            active_goal = active_goals.first()
+            active_periods = active_goal.periods.filter(is_active=True)
+            if active_periods.exists():
+                current_period = active_periods.first()
+                today = timezone.now().date()
+                day_of_period = (today - current_period.start_date).days + 1
+                if day_of_period > 0:
+                    today_activities = ScheduledActivity.objects.filter(
+                        monk_mode_period=current_period,
+                        day_of_period=day_of_period
+                    ).order_by('start_time')
+        
+        # Get daily motivation with error handling
+        daily_motivation = None
+        try:
+            daily_motivation = MotivationService.get_daily_motivation(user, 'morning')
+        except:
+            daily_motivation = {'message': 'Stay focused on your goals today!', 'type': 'text'}
+        
+        # Get focus recommendations with error handling
+        focus_recommendations = []
+        try:
+            focus_recommendations = PriorityEngine.get_focus_recommendations(user)
+        except:
+            focus_recommendations = []
+        
+        # Get energy insights with error handling
         latest_energy = None
         energy_prediction = []
-    
-    # Calculate dashboard metrics
-    metrics = {
-        'total_goals': MonkModeGoal.objects.filter(user=user).count(),
-        'active_goals': active_goals.count(),
-        'completed_goals': MonkModeGoal.objects.filter(user=user, current_status='completed').count(),
-        'current_streak': _calculate_current_streak(user),
-        'avg_mood_week': _calculate_avg_mood(user, 7),
-        'avg_adherence_week': _calculate_avg_adherence(user, 7),
-    }
-    
-    context = {
-        'active_goals': active_goals,
-        'recent_logs': recent_logs,
-        'today_activities': today_activities,
-        'current_period': current_period,
-        'daily_motivation': daily_motivation,
-        'focus_recommendations': focus_recommendations,
-        'latest_energy': latest_energy,
-        'energy_predictions': energy_prediction[:6],  # Next 6 hours
-        'metrics': metrics,
-        'today': timezone.now().date(),
-    }
+        try:
+            latest_energy = EnergyLog.objects.filter(user=user).order_by('-timestamp').first()
+            energy_prediction = EnergyManagementService.predict_energy_levels(user, hours_ahead=12)
+        except:
+            latest_energy = None
+            energy_prediction = []
+        
+        # Calculate dashboard metrics
+        metrics = {
+            'total_goals': MonkModeGoal.objects.filter(user=user).count(),
+            'active_goals': active_goals.count(),
+            'completed_goals': MonkModeGoal.objects.filter(user=user, current_status='completed').count(),
+            'current_streak': _calculate_current_streak(user),
+            'avg_mood_week': _calculate_avg_mood(user, 7),
+            'avg_adherence_week': _calculate_avg_adherence(user, 7),
+        }
+        
+        context = {
+            'active_goals': active_goals,
+            'recent_logs': recent_logs,
+            'today_activities': today_activities,
+            'current_period': current_period,
+            'daily_motivation': daily_motivation,
+            'focus_recommendations': focus_recommendations,
+            'latest_energy': latest_energy,
+            'energy_predictions': energy_prediction[:6] if energy_prediction else [],
+            'metrics': metrics,
+            'today': timezone.now().date(),
+        }
+        
+    except Exception as e:
+        messages.error(request, f'Dashboard error: {str(e)}')
+        context = {
+            'active_goals': [],
+            'recent_logs': [],
+            'today_activities': [],
+            'metrics': {'total_goals': 0, 'active_goals': 0, 'completed_goals': 0, 'current_streak': 0},
+        }
     
     return render(request, 'dashboard/dashboard.html', context)
+
 
 @login_required
 def goals_list(request):
@@ -121,8 +143,38 @@ def goals_list(request):
 
 @login_required
 def goal_detail(request, goal_id):
-    """Detailed view of a specific goal"""
+    """Detailed view of a specific goal with objective management"""
     goal = get_object_or_404(MonkModeGoal, id=goal_id, user=request.user)
+    
+    # Handle POST requests for adding objectives
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'add_objective':
+            try:
+                objective = MonkModeObjective.objects.create(
+                    goal=goal,
+                    description=request.POST['description'],
+                    due_date=request.POST.get('due_date') or None,
+                    estimated_hours=request.POST.get('estimated_hours') or None,
+                    difficulty_level=int(request.POST.get('difficulty_level', 3))
+                )
+                messages.success(request, f'Objective "{objective.description}" added successfully!')
+                return redirect('dashboard:goal_detail', goal_id=goal.id)
+                
+            except Exception as e:
+                messages.error(request, f'Error adding objective: {str(e)}')
+        
+        elif action == 'complete_objective':
+            try:
+                objective_id = request.POST.get('objective_id')
+                objective = get_object_or_404(MonkModeObjective, id=objective_id, goal=goal)
+                objective.mark_completed()
+                messages.success(request, 'Objective marked as completed!')
+                return redirect('dashboard:goal_detail', goal_id=goal.id)
+                
+            except Exception as e:
+                messages.error(request, f'Error completing objective: {str(e)}')
     
     # Get objectives
     objectives = goal.objectives.all().order_by('due_date', '-created_at')
@@ -185,11 +237,14 @@ def ai_chat(request, goal_id=None):
     if goal_id:
         goal = get_object_or_404(MonkModeGoal, id=goal_id, user=request.user)
     
-    # Get recent chat history
-    chat_history = AIPromptHistory.objects.filter(
+    # Get recent chat history - FIXED: No negative indexing
+    chat_history_qs = AIPromptHistory.objects.filter(
         user=request.user,
         monk_mode_goal=goal
-    ).order_by('timestamp')[-20:]  # Last 20 messages
+    ).order_by('timestamp')
+    
+    # Get last 20 messages without negative indexing
+    chat_history = list(chat_history_qs)[-20:] if chat_history_qs.exists() else []
     
     if request.method == 'POST':
         message = request.POST.get('message', '').strip()
@@ -305,11 +360,15 @@ def complete_activity(request, activity_id):
     
     return redirect('dashboard:schedule_view', period_id=activity.monk_mode_period.id)
 
+
 @login_required
 def daily_log(request, date=None):
-    """Daily logging interface"""
+    """Daily logging interface with proper form handling"""
     if date:
-        log_date = datetime.strptime(date, '%Y-%m-%d').date()
+        try:
+            log_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            log_date = timezone.now().date()
     else:
         log_date = timezone.now().date()
     
@@ -322,17 +381,46 @@ def daily_log(request, date=None):
     
     if request.method == 'POST':
         try:
-            # Update daily log fields
+            # Update daily log fields with proper validation
             daily_log.reflection_text = request.POST.get('reflection_text', '')
-            daily_log.adherence_score = request.POST.get('adherence_score')
-            daily_log.mood_rating = request.POST.get('mood_rating')
-            daily_log.energy_level_morning = request.POST.get('energy_morning')
-            daily_log.energy_level_afternoon = request.POST.get('energy_afternoon')
-            daily_log.energy_level_evening = request.POST.get('energy_evening')
-            daily_log.sleep_quality = request.POST.get('sleep_quality')
-            daily_log.stress_level = request.POST.get('stress_level')
-            daily_log.environment_rating = request.POST.get('environment_rating')
-            daily_log.distractions_count = request.POST.get('distractions_count', 0)
+            
+            # Handle numeric fields with validation
+            adherence_score = request.POST.get('adherence_score')
+            if adherence_score and adherence_score.strip():
+                daily_log.adherence_score = max(1, min(10, int(adherence_score)))
+            
+            mood_rating = request.POST.get('mood_rating')
+            if mood_rating and mood_rating.strip():
+                daily_log.mood_rating = max(1, min(5, int(mood_rating)))
+            
+            energy_morning = request.POST.get('energy_morning')
+            if energy_morning and energy_morning.strip():
+                daily_log.energy_level_morning = max(1, min(10, int(energy_morning)))
+            
+            energy_afternoon = request.POST.get('energy_afternoon')
+            if energy_afternoon and energy_afternoon.strip():
+                daily_log.energy_level_afternoon = max(1, min(10, int(energy_afternoon)))
+            
+            energy_evening = request.POST.get('energy_evening')
+            if energy_evening and energy_evening.strip():
+                daily_log.energy_level_evening = max(1, min(10, int(energy_evening)))
+            
+            sleep_quality = request.POST.get('sleep_quality')
+            if sleep_quality and sleep_quality.strip():
+                daily_log.sleep_quality = max(1, min(5, int(sleep_quality)))
+            
+            stress_level = request.POST.get('stress_level')
+            if stress_level and stress_level.strip():
+                daily_log.stress_level = max(1, min(5, int(stress_level)))
+            
+            environment_rating = request.POST.get('environment_rating')
+            if environment_rating and environment_rating.strip():
+                daily_log.environment_rating = max(1, min(5, int(environment_rating)))
+            
+            distractions_count = request.POST.get('distractions_count')
+            if distractions_count and distractions_count.strip():
+                daily_log.distractions_count = max(0, int(distractions_count))
+            
             daily_log.wins_of_the_day = request.POST.get('wins_of_the_day', '')
             daily_log.challenges_faced = request.POST.get('challenges_faced', '')
             
@@ -340,42 +428,56 @@ def daily_log(request, date=None):
             
             # Log current energy if provided
             current_energy = request.POST.get('current_energy')
-            if current_energy:
-                EnergyManagementService.log_energy_level(
-                    request.user,
-                    int(current_energy),
-                    context_factors={
-                        'sleep_quality': daily_log.sleep_quality,
-                        'stress_level': daily_log.stress_level,
-                        'distractions': daily_log.distractions_count
-                    },
-                    notes=request.POST.get('energy_notes', '')
-                )
+            if current_energy and current_energy.strip():
+                try:
+                    EnergyManagementService.log_energy_level(
+                        request.user,
+                        int(current_energy),
+                        context_factors={
+                            'sleep_quality': daily_log.sleep_quality,
+                            'stress_level': daily_log.stress_level,
+                            'distractions': daily_log.distractions_count
+                        },
+                        notes=request.POST.get('energy_notes', '')
+                    )
+                except:
+                    pass  # Don't fail the entire save if energy logging fails
             
             # Check for support triggers
-            if daily_log.mood_rating and int(daily_log.mood_rating) <= 2:
-                SupportNetworkService.check_mood_triggers(request.user)
+            if daily_log.mood_rating and daily_log.mood_rating <= 2:
+                try:
+                    SupportNetworkService.check_mood_triggers(request.user)
+                except:
+                    pass
             
-            if daily_log.adherence_score and int(daily_log.adherence_score) <= 5:
-                SupportNetworkService.check_adherence_triggers(request.user)
+            if daily_log.adherence_score and daily_log.adherence_score <= 5:
+                try:
+                    SupportNetworkService.check_adherence_triggers(request.user)
+                except:
+                    pass
             
             messages.success(request, 'Daily log updated successfully!')
             
+        except ValueError as e:
+            messages.error(request, 'Please enter valid numbers for ratings and scores.')
         except Exception as e:
             messages.error(request, f'Error updating daily log: {str(e)}')
     
     # Get today's activities for reference
     today_activities = []
-    active_goal = MonkModeGoal.objects.filter(user=request.user, current_status='active').first()
-    if active_goal:
-        active_period = active_goal.periods.filter(is_active=True).first()
-        if active_period:
-            day_of_period = (log_date - active_period.start_date).days + 1
-            if day_of_period > 0:
-                today_activities = ScheduledActivity.objects.filter(
-                    monk_mode_period=active_period,
-                    day_of_period=day_of_period
-                ).order_by('start_time')
+    try:
+        active_goal = MonkModeGoal.objects.filter(user=request.user, current_status='active').first()
+        if active_goal:
+            active_period = active_goal.periods.filter(is_active=True).first()
+            if active_period:
+                day_of_period = (log_date - active_period.start_date).days + 1
+                if day_of_period > 0:
+                    today_activities = ScheduledActivity.objects.filter(
+                        monk_mode_period=active_period,
+                        day_of_period=day_of_period
+                    ).order_by('start_time')
+    except:
+        today_activities = []
     
     context = {
         'daily_log': daily_log,
@@ -385,6 +487,7 @@ def daily_log(request, date=None):
     }
     
     return render(request, 'dashboard/daily_log.html', context)
+
 
 @login_required
 def support_network(request):
@@ -664,7 +767,7 @@ def progress_analytics(request):
         'total_activities_completed': ScheduledActivity.objects.filter(
             monk_mode_period__goal__user=user,
             is_completed=True,
-            completed_at__gte=timezone.combine(start_date, datetime.min.time())
+            completed_at__gte=datetime.combine(start_date, datetime.min.time())
         ).count(),
         'streak': _calculate_current_streak(user),
     }
@@ -838,3 +941,10 @@ def _calculate_goal_progress(goal):
         'total_activities': total_activities,
         'completed_activities': completed_activities,
     }
+
+def user_logout(request):
+    """Proper logout function"""
+    logout(request)
+    messages.success(request, 'You have been logged out successfully.')
+    return redirect('accounts:login')  # Adjust this to your login URL name
+

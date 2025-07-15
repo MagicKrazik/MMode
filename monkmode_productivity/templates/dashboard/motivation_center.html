@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Motivation Center - MonkMode{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1><i class="fas fa-fire"></i> Motivation Center</h1>
+            <p class="text-muted">Manage your motivation content and commitment contracts</p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Daily Motivation</h5>
+                </div>
+                <div class="card-body">
+                    {% if daily_motivation %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-lightbulb"></i> {{ daily_motivation.message|default:"Stay focused on your goals today!" }}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No motivation content available.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5>Upload Motivation Content</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="upload_media">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Content Type</label>
+                            <select name="media_type" class="form-select" required>
+                                <option value="">Select...</option>
+                                <option value="text">Text Note</option>
+                                <option value="image">Image</option>
+                                <option value="video">Video</option>
+                                <option value="audio">Audio</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input type="text" name="title" class="form-control" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Content/File</label>
+                            <textarea name="text_content" class="form-control" rows="3" 
+                                      placeholder="Enter motivational text or upload a file below"></textarea>
+                            <input type="file" name="media_file" class="form-control mt-2" 
+                                   accept="image/*,video/*,audio/*">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-upload"></i> Add Motivation
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Your Motivation Content</h5>
+                </div>
+                <div class="card-body">
+                    {% if motivation_media %}
+                        {% for media in motivation_media %}
+                            <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                                <div>
+                                    <h6 class="mb-1">{{ media.title }}</h6>
+                                    <small class="text-muted">{{ media.get_media_type_display }}</small>
+                                </div>
+                                <small class="text-muted">{{ media.created_at|date:"M j" }}</small>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No motivation content yet. Upload some inspiration!</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5>Schedule Letter to Future You</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="schedule_letter">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Subject</label>
+                            <input type="text" name="subject" class="form-control" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Message</label>
+                            <textarea name="content" class="form-control" rows="4" required
+                                      placeholder="Write a letter to your future self..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Delivery Trigger</label>
+                            <select name="delivery_trigger" class="form-select" required>
+                                <option value="scheduled">Specific Date</option>
+                                <option value="milestone">Milestone Achievement</option>
+                                <option value="mood_low">When Feeling Down</option>
+                                <option value="completion">Goal Completion</option>
+                                <option value="halfway">Halfway Point</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Delivery Date (if scheduled)</label>
+                            <input type="datetime-local" name="delivery_date" class="form-control">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-envelope"></i> Schedule Letter
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

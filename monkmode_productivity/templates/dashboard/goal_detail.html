@@ -374,12 +374,14 @@
                             <i class="fas fa-calendar-alt"></i> View Schedule
                         </a>
                     {% else %}
-                        <a href="{% url 'dashboard:ai_chat' goal.id %}" class="btn btn-success">
+                        <!-- FIXED: Use correct URL name for AI chat with goal -->
+                        <a href="{% url 'dashboard:ai_chat_with_goal' goal.id %}" class="btn btn-success">
                             <i class="fas fa-robot"></i> Generate AI Schedule
                         </a>
                     {% endif %}
                     
-                    <a href="{% url 'dashboard:ai_chat' goal.id %}" class="btn btn-outline-info">
+                    <!-- FIXED: Use correct URL name for AI chat with goal -->
+                    <a href="{% url 'dashboard:ai_chat_with_goal' goal.id %}" class="btn btn-outline-info">
                         <i class="fas fa-comments"></i> Chat with AI Coach
                     </a>
                     

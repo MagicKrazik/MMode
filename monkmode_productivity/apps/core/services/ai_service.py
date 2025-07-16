@@ -39,12 +39,16 @@ class AIService:
             # Build comprehensive context
             context = AIService._build_user_context(user, goal)
             
-            # Get conversation history
+            # Get conversation history - FIXED: No negative indexing
             if chat_history is None:
-                chat_history = AIPromptHistory.objects.filter(
+                chat_history_qs = AIPromptHistory.objects.filter(
                     user=user,
                     monk_mode_goal=goal
-                ).order_by('timestamp')[-10:]  # Last 10 messages
+                ).order_by('-timestamp')[:10]  # Get last 10 messages
+                
+                # Convert to list and reverse for chronological order
+                chat_history = list(chat_history_qs)
+                chat_history.reverse()
             
             # Build system prompt
             system_prompt = AIService._build_system_prompt(context, message_type)
@@ -57,7 +61,7 @@ class AIService:
             # Call Gemini API
             response = AIService._call_gemini_api(conversation)
             
-            if response and 'candidates' in response:
+            if response and 'candidates' in response and len(response['candidates']) > 0:
                 ai_response = response['candidates'][0]['content']['parts'][0]['text']
                 
                 # Save AI response
@@ -133,23 +137,35 @@ class AIService:
                 for obj in objectives
             ]
         
-        # Add recent activity data
-        recent_logs = UserDailyLog.objects.filter(
-            user=user,
-            log_date__gte=timezone.now().date() - timedelta(days=7)
-        ).order_by('-log_date')
-        
-        if recent_logs.exists():
-            context['recent_performance'] = {
-                'avg_mood': sum(log.mood_rating for log in recent_logs if log.mood_rating) / max(1, len([log for log in recent_logs if log.mood_rating])),
-                'avg_adherence': sum(log.adherence_score for log in recent_logs if log.adherence_score) / max(1, len([log for log in recent_logs if log.adherence_score])),
-                'recent_challenges': [log.challenges_faced for log in recent_logs[:3] if log.challenges_faced]
-            }
+        # Add recent activity data with better error handling
+        try:
+            recent_logs = UserDailyLog.objects.filter(
+                user=user,
+                log_date__gte=timezone.now().date() - timedelta(days=7)
+            ).order_by('-log_date')
+            
+            if recent_logs.exists():
+                mood_logs = [log.mood_rating for log in recent_logs if log.mood_rating]
+                adherence_logs = [log.adherence_score for log in recent_logs if log.adherence_score]
+                
+                context['recent_performance'] = {
+                    'avg_mood': sum(mood_logs) / len(mood_logs) if mood_logs else 0,
+                    'avg_adherence': sum(adherence_logs) / len(adherence_logs) if adherence_logs else 0,
+                    'recent_challenges': [log.challenges_faced for log in recent_logs[:3] if log.challenges_faced]
+                }
+        except Exception as e:
+            logger.warning(f"Error building user context for recent performance: {str(e)}")
+            context['recent_performance'] = {'avg_mood': 0, 'avg_adherence': 0, 'recent_challenges': []}
         
         # Add support network info
-        support_contacts = SupportContact.objects.filter(user=user, is_active=True)
-        context['has_support_network'] = support_contacts.exists()
-        context['support_network_size'] = support_contacts.count()
+        try:
+            support_contacts = SupportContact.objects.filter(user=user, is_active=True)
+            context['has_support_network'] = support_contacts.exists()
+            context['support_network_size'] = support_contacts.count()
+        except Exception as e:
+            logger.warning(f"Error building user context for support network: {str(e)}")
+            context['has_support_network'] = False
+            context['support_network_size'] = 0
         
         return context
     
@@ -238,13 +254,16 @@ class AIService:
             ]
         }
         
-        # Add chat history
-        for message in chat_history:
-            role = "user" if message.role == "user" else "model"
-            conversation["contents"].append({
-                "role": role,
-                "parts": [{"text": message.message_text}]
-            })
+        # Add chat history with better error handling
+        try:
+            for message in chat_history:
+                role = "user" if message.role == "user" else "model"
+                conversation["contents"].append({
+                    "role": role,
+                    "parts": [{"text": message.message_text}]
+                })
+        except Exception as e:
+            logger.warning(f"Error building conversation history: {str(e)}")
         
         # Add current message
         conversation["contents"].append({
@@ -256,7 +275,7 @@ class AIService:
     
     @staticmethod
     def _call_gemini_api(conversation):
-        """Make API call to Gemini"""
+        """Make API call to Gemini with enhanced error handling"""
         try:
             headers = {
                 'Content-Type': 'application/json',
@@ -279,6 +298,9 @@ class AIService:
             
             return response.json()
             
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Gemini API timeout: {str(e)}")
+            return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Gemini API request failed: {str(e)}")
             return None
@@ -319,12 +341,15 @@ class AIService:
                     logger.error(f"Missing required field: {field}")
                     return None
             
-            # Create MonkModePeriod
+            # Create MonkModePeriod with timezone-aware dates
+            start_date = datetime.strptime(plan_data['period_start_date'], '%Y-%m-%d').date()
+            end_date = datetime.strptime(plan_data['period_end_date'], '%Y-%m-%d').date()
+            
             period = MonkModePeriod.objects.create(
                 goal=goal,
                 period_name=plan_data['monk_mode_plan_name'],
-                start_date=datetime.strptime(plan_data['period_start_date'], '%Y-%m-%d').date(),
-                end_date=datetime.strptime(plan_data['period_end_date'], '%Y-%m-%d').date(),
+                start_date=start_date,
+                end_date=end_date,
                 ai_generated_json=plan_data,
                 is_active=True
             )
@@ -334,39 +359,43 @@ class AIService:
                 day_number = daily_schedule['day_number']
                 
                 for activity_data in daily_schedule['activities']:
-                    # Get or create activity type
-                    activity_type, _ = ActivityType.objects.get_or_create(
-                        name=activity_data['activity_type'],
-                        defaults={
-                            'description': f"Generated activity type: {activity_data['activity_type']}",
-                            'energy_requirement': activity_data.get('energy_required', 5)
-                        }
-                    )
-                    
-                    # Calculate duration
-                    start_time = datetime.strptime(activity_data['start_time'], '%H:%M').time()
-                    end_time = datetime.strptime(activity_data['end_time'], '%H:%M').time()
-                    
-                    start_datetime = datetime.combine(datetime.today(), start_time)
-                    end_datetime = datetime.combine(datetime.today(), end_time)
-                    
-                    # Handle overnight activities
-                    if end_time < start_time:
-                        end_datetime += timedelta(days=1)
-                    
-                    duration_minutes = int((end_datetime - start_datetime).total_seconds() / 60)
-                    
-                    # Create scheduled activity
-                    ScheduledActivity.objects.create(
-                        monk_mode_period=period,
-                        activity_type=activity_type,
-                        day_of_period=day_number,
-                        start_time=start_time,
-                        end_time=end_time,
-                        duration_minutes=duration_minutes,
-                        description=activity_data.get('description', ''),
-                        energy_required=activity_data.get('energy_required', 5)
-                    )
+                    try:
+                        # Get or create activity type
+                        activity_type, _ = ActivityType.objects.get_or_create(
+                            name=activity_data['activity_type'],
+                            defaults={
+                                'description': f"Generated activity type: {activity_data['activity_type']}",
+                                'energy_requirement': activity_data.get('energy_required', 5)
+                            }
+                        )
+                        
+                        # Calculate duration with proper error handling
+                        start_time = datetime.strptime(activity_data['start_time'], '%H:%M').time()
+                        end_time = datetime.strptime(activity_data['end_time'], '%H:%M').time()
+                        
+                        start_datetime = datetime.combine(datetime.today(), start_time)
+                        end_datetime = datetime.combine(datetime.today(), end_time)
+                        
+                        # Handle overnight activities
+                        if end_time < start_time:
+                            end_datetime += timedelta(days=1)
+                        
+                        duration_minutes = int((end_datetime - start_datetime).total_seconds() / 60)
+                        
+                        # Create scheduled activity
+                        ScheduledActivity.objects.create(
+                            monk_mode_period=period,
+                            activity_type=activity_type,
+                            day_of_period=day_number,
+                            start_time=start_time,
+                            end_time=end_time,
+                            duration_minutes=duration_minutes,
+                            description=activity_data.get('description', ''),
+                            energy_required=activity_data.get('energy_required', 5)
+                        )
+                    except Exception as activity_error:
+                        logger.warning(f"Error creating activity: {str(activity_error)}")
+                        continue
             
             logger.info(f"Successfully created MonkModePeriod {period.id} for user {user.id}")
             return period
@@ -385,12 +414,18 @@ class AIService:
             if activities_queryset is None:
                 # Get today's activities
                 today = timezone.now().date()
-                active_period = user.monk_mode_goals.filter(current_status='active').first()
+                active_goals = user.monk_mode_goals.filter(current_status='active')
                 
-                if not active_period or not active_period.periods.filter(is_active=True).exists():
+                if not active_goals.exists():
+                    return "No active Monk Mode goals found."
+                
+                active_goal = active_goals.first()
+                active_periods = active_goal.periods.filter(is_active=True)
+                
+                if not active_periods.exists():
                     return "No active Monk Mode period found."
                 
-                period = active_period.periods.filter(is_active=True).first()
+                period = active_periods.first()
                 day_of_period = (today - period.start_date).days + 1
                 
                 activities_queryset = ScheduledActivity.objects.filter(
@@ -490,66 +525,6 @@ class AIService:
             return "Keep pushing forward! You've got this!"
     
     @staticmethod
-    def analyze_progress_and_suggest_adjustments(user, goal):
-        """Analyze user's progress and suggest plan adjustments"""
-        try:
-            # Get recent performance data
-            recent_logs = UserDailyLog.objects.filter(
-                user=user,
-                log_date__gte=timezone.now().date() - timedelta(days=14)
-            ).order_by('-log_date')
-            
-            # Get completed activities
-            completed_activities = ScheduledActivity.objects.filter(
-                monk_mode_period__goal=goal,
-                is_completed=True,
-                completed_at__gte=timezone.now() - timedelta(days=14)
-            )
-            
-            # Build analysis context
-            analysis_context = {
-                'goal_completion_percentage': goal.completion_percentage,
-                'recent_mood_avg': sum(log.mood_rating for log in recent_logs if log.mood_rating) / max(1, len([log for log in recent_logs if log.mood_rating])),
-                'recent_adherence_avg': sum(log.adherence_score for log in recent_logs if log.adherence_score) / max(1, len([log for log in recent_logs if log.adherence_score])),
-                'activities_completed': completed_activities.count(),
-                'major_challenges': [log.challenges_faced for log in recent_logs[:5] if log.challenges_faced],
-                'recent_wins': [log.wins_of_the_day for log in recent_logs[:5] if log.wins_of_the_day]
-            }
-            
-            analysis_message = f"""
-            Please analyze my Monk Mode progress and suggest adjustments to improve my success:
-            
-            Current Progress Analysis:
-            - Goal completion: {analysis_context['goal_completion_percentage']:.1f}%
-            - Average mood (last 14 days): {analysis_context['recent_mood_avg']:.1f}/5
-            - Average adherence: {analysis_context['recent_adherence_avg']:.1f}/10
-            - Activities completed: {analysis_context['activities_completed']}
-            
-            Recent challenges: {analysis_context['major_challenges'][:3]}
-            Recent wins: {analysis_context['recent_wins'][:3]}
-            
-            Based on this data, please provide:
-            1. Assessment of my current trajectory
-            2. Specific areas that need adjustment
-            3. Concrete suggestions for improving adherence
-            4. Any schedule modifications you recommend
-            5. Strategies to overcome recurring challenges
-            """
-            
-            response = AIService.send_message_to_gemini(
-                user.id, goal.id, analysis_message, message_type='chat'
-            )
-            
-            if response['status'] == 'success':
-                return response['ai_response']
-            else:
-                return "Unable to generate progress analysis at this time."
-                
-        except Exception as e:
-            logger.error(f"Error analyzing progress: {str(e)}")
-            return "Error analyzing progress."
-    
-    @staticmethod
     def generate_weekly_review_insights(user):
         """Generate AI insights for weekly review"""
         try:
@@ -563,15 +538,18 @@ class AIService:
             
             completed_activities = ScheduledActivity.objects.filter(
                 monk_mode_period__goal__user=user,
-                completed_at__gte=timezone.combine(week_start, datetime.min.time()),
+                completed_at__gte=timezone.datetime.combine(week_start, timezone.datetime.min.time()),
                 is_completed=True
             )
             
-            # Calculate weekly metrics
+            # Calculate weekly metrics with better error handling
+            mood_values = [log.mood_rating for log in weekly_logs if log.mood_rating]
+            adherence_values = [log.adherence_score for log in weekly_logs if log.adherence_score]
+            
             weekly_metrics = {
                 'days_logged': weekly_logs.count(),
-                'avg_mood': sum(log.mood_rating for log in weekly_logs if log.mood_rating) / max(1, len([log for log in weekly_logs if log.mood_rating])),
-                'avg_adherence': sum(log.adherence_score for log in weekly_logs if log.adherence_score) / max(1, len([log for log in weekly_logs if log.adherence_score])),
+                'avg_mood': sum(mood_values) / len(mood_values) if mood_values else 0,
+                'avg_adherence': sum(adherence_values) / len(adherence_values) if adherence_values else 0,
                 'activities_completed': completed_activities.count(),
                 'total_deep_work_hours': sum(
                     activity.duration_minutes / 60 
@@ -619,63 +597,6 @@ class AIService:
         except Exception as e:
             logger.error(f"Error generating weekly review insights: {str(e)}")
             return "Unable to generate weekly insights at this time."
-    
-    @staticmethod
-    def suggest_goal_adjustments(user, goal):
-        """Suggest adjustments to goal based on progress"""
-        try:
-            # Calculate time remaining
-            days_total = (goal.end_date - goal.start_date).days
-            days_elapsed = (timezone.now().date() - goal.start_date).days
-            days_remaining = (goal.end_date - timezone.now().date()).days
-            
-            # Get completion rate
-            completion_percentage = goal.completion_percentage
-            expected_completion = (days_elapsed / days_total) * 100 if days_total > 0 else 0
-            
-            # Get recent performance
-            recent_adherence = UserDailyLog.objects.filter(
-                user=user,
-                log_date__gte=timezone.now().date() - timedelta(days=7),
-                adherence_score__isnull=False
-            ).aggregate(avg=models.Avg('adherence_score'))['avg'] or 0
-            
-            adjustment_message = f"""
-            Please analyze my goal progress and suggest adjustments:
-            
-            Goal Analysis:
-            - Total duration: {days_total} days
-            - Days elapsed: {days_elapsed}
-            - Days remaining: {days_remaining}
-            - Current completion: {completion_percentage:.1f}%
-            - Expected completion at this point: {expected_completion:.1f}%
-            - Progress gap: {completion_percentage - expected_completion:.1f}% 
-            - Recent adherence: {recent_adherence:.1f}/10
-            
-            Goal: {goal.title}
-            Description: {goal.description}
-            Target outcome: {goal.target_outcome}
-            
-            Please suggest:
-            1. Is my goal timeline realistic given current progress?
-            2. Should I adjust the scope or timeline?
-            3. What specific changes would improve my success rate?
-            4. How can I accelerate progress if behind schedule?
-            5. Any red flags or concerns about current trajectory?
-            """
-            
-            response = AIService.send_message_to_gemini(
-                user.id, goal.id, adjustment_message, message_type='chat'
-            )
-            
-            if response['status'] == 'success':
-                return response['ai_response']
-            else:
-                return "Consider reviewing your goal timeline and breaking down remaining tasks into smaller, manageable steps."
-                
-        except Exception as e:
-            logger.error(f"Error suggesting goal adjustments: {str(e)}")
-            return "Unable to generate goal adjustment suggestions."
     
     @staticmethod
     def generate_emergency_motivation(user, crisis_context=""):

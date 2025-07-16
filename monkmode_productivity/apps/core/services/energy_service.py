@@ -3,8 +3,6 @@ from django.db.models import Avg, Count, Q
 from apps.core.models import EnergyLog, EnergyPrediction, UserDailyLog, ScheduledActivity
 from datetime import datetime, timedelta
 import logging
-import numpy as np
-import statistics 
 
 logger = logging.getLogger(__name__)
 
@@ -16,28 +14,47 @@ class EnergyManagementService:
     
     @staticmethod
     def log_energy_level(user, energy_level, context_factors=None, notes=""):
-        """Log user's current energy level"""
+        """Log user's current energy level with enhanced validation"""
         try:
             if context_factors is None:
                 context_factors = {}
             
+            # Validate energy level
+            energy_level = int(energy_level) if energy_level else 5
+            energy_level = max(1, min(10, energy_level))
+            
             # Get the most recent activity if not provided in context
             if 'activity_before' not in context_factors:
-                recent_activity = ScheduledActivity.objects.filter(
-                    monk_mode_period__goal__user=user,
-                    actual_end_time__lte=timezone.now(),
-                    actual_end_time__gte=timezone.now() - timedelta(hours=2)
-                ).order_by('-actual_end_time').first()
-                
-                if recent_activity:
-                    context_factors['activity_before'] = recent_activity.activity_type.name
+                try:
+                    recent_activity = ScheduledActivity.objects.filter(
+                        monk_mode_period__goal__user=user,
+                        actual_end_time__lte=timezone.now(),
+                        actual_end_time__gte=timezone.now() - timedelta(hours=2)
+                    ).order_by('-actual_end_time').first()
+                    
+                    if recent_activity:
+                        context_factors['activity_before'] = recent_activity.activity_type.name
+                except Exception as e:
+                    logger.warning(f"Error getting recent activity: {str(e)}")
+            
+            # Clean and validate context factors
+            validated_context = {}
+            for key, value in context_factors.items():
+                if value is not None:
+                    # Convert numeric strings to proper types
+                    if isinstance(value, str) and value.isdigit():
+                        validated_context[key] = int(value)
+                    elif isinstance(value, str):
+                        validated_context[key] = str(value).strip()
+                    else:
+                        validated_context[key] = value
             
             energy_log = EnergyLog.objects.create(
                 user=user,
                 timestamp=timezone.now(),
                 energy_level=energy_level,
-                context_factors=context_factors,
-                notes=notes
+                context_factors=validated_context,
+                notes=notes or ""
             )
             
             # Update daily log if exists
@@ -72,6 +89,13 @@ class EnergyManagementService:
     def _check_energy_alerts(user, energy_level):
         """Check if energy level warrants alerts or recommendations"""
         try:
+            # Validate energy level is numeric
+            if not isinstance(energy_level, (int, float)):
+                logger.warning(f"Invalid energy level type: {type(energy_level)}")
+                return
+            
+            energy_level = float(energy_level)
+            
             # Get recent energy levels
             recent_logs = EnergyLog.objects.filter(
                 user=user,
@@ -79,7 +103,7 @@ class EnergyManagementService:
             ).order_by('-timestamp')[:3]
             
             if len(recent_logs) >= 2:
-                energy_trend = [log.energy_level for log in recent_logs]
+                energy_trend = [float(log.energy_level) for log in recent_logs]
                 avg_recent = sum(energy_trend) / len(energy_trend)
                 
                 # Check for concerning patterns
@@ -95,9 +119,6 @@ class EnergyManagementService:
     def _trigger_low_energy_protocol(user, energy_level):
         """Trigger protocol for low energy levels"""
         try:
-            # Import here to avoid circular imports
-            from apps.core.services.motivation_service import MotivationService
-            
             recommendations = [
                 "🔋 Your energy is running low. Consider taking a short break.",
                 "💧 Stay hydrated - dehydration can impact energy levels.",
@@ -107,15 +128,19 @@ class EnergyManagementService:
             
             # Check if it's time for a scheduled break
             current_time = timezone.now().time()
-            upcoming_activities = ScheduledActivity.objects.filter(
-                monk_mode_period__goal__user=user,
-                start_time__gte=current_time,
-                start_time__lte=(timezone.now() + timedelta(hours=2)).time(),
-                activity_type__name__icontains='break'
-            )
             
-            if not upcoming_activities.exists():
-                recommendations.append("📅 Consider scheduling a break in your next hour.")
+            try:
+                upcoming_activities = ScheduledActivity.objects.filter(
+                    monk_mode_period__goal__user=user,
+                    start_time__gte=current_time,
+                    start_time__lte=(timezone.now() + timedelta(hours=2)).time(),
+                    activity_type__name__icontains='break'
+                )
+                
+                if not upcoming_activities.exists():
+                    recommendations.append("📅 Consider scheduling a break in your next hour.")
+            except Exception as e:
+                logger.warning(f"Error checking upcoming activities: {str(e)}")
             
             # Store recommendations in user's daily log
             today = timezone.now().date()
@@ -142,22 +167,27 @@ class EnergyManagementService:
         try:
             # Get current day's remaining activities
             current_time = timezone.now().time()
-            remaining_activities = ScheduledActivity.objects.filter(
-                monk_mode_period__goal__user=user,
-                start_time__gte=current_time,
-                is_completed=False,
-                energy_required__gte=6  # High energy tasks
-            ).order_by('start_time')[:3]
             
-            suggestions = []
-            if remaining_activities.exists():
-                suggestions.append(f"⚡ High energy detected! Perfect time for:")
-                for activity in remaining_activities:
-                    suggestions.append(f"  • {activity.description}")
-            else:
-                suggestions.append("⚡ High energy! Consider tackling challenging tasks now.")
-            
-            return suggestions
+            try:
+                remaining_activities = ScheduledActivity.objects.filter(
+                    monk_mode_period__goal__user=user,
+                    start_time__gte=current_time,
+                    is_completed=False,
+                    energy_required__gte=6  # High energy tasks
+                ).order_by('start_time')[:3]
+                
+                suggestions = []
+                if remaining_activities.exists():
+                    suggestions.append(f"⚡ High energy detected! Perfect time for:")
+                    for activity in remaining_activities:
+                        suggestions.append(f"  • {activity.description}")
+                else:
+                    suggestions.append("⚡ High energy! Consider tackling challenging tasks now.")
+                
+                return suggestions
+            except Exception as e:
+                logger.warning(f"Error getting remaining activities: {str(e)}")
+                return ["⚡ High energy! Consider tackling challenging tasks now."]
             
         except Exception as e:
             logger.error(f"Error suggesting high energy tasks: {str(e)}")
@@ -207,10 +237,16 @@ class EnergyManagementService:
                     for log in hour_data:
                         days_ago = (timezone.now().date() - log.timestamp.date()).days
                         weight = 1.0 / (1.0 + days_ago * 0.1)  # More recent = higher weight
-                        energy_values.append(log.energy_level)
+                        energy_values.append(float(log.energy_level))
                         weights.append(weight)
                     
-                    predicted_energy = np.average(energy_values, weights=weights)
+                    # Calculate weighted average
+                    total_weight = sum(weights)
+                    if total_weight > 0:
+                        predicted_energy = sum(e * w for e, w in zip(energy_values, weights)) / total_weight
+                    else:
+                        predicted_energy = sum(energy_values) / len(energy_values)
+                    
                     confidence = min(0.95, len(hour_data) * 0.1)  # Higher confidence with more data
                 else:
                     # Use default pattern if no historical data for this hour
@@ -287,27 +323,30 @@ class EnergyManagementService:
     def _adjust_for_context(user, base_energy, prediction_time):
         """Adjust energy prediction based on context factors"""
         try:
-            adjusted_energy = base_energy
+            adjusted_energy = float(base_energy)
             
             # Check for scheduled activities that might affect energy
-            scheduled_activities = ScheduledActivity.objects.filter(
-                monk_mode_period__goal__user=user,
-                start_time__lte=prediction_time.time(),
-                end_time__gte=(prediction_time - timedelta(hours=2)).time()
-            )
-            
-            for activity in scheduled_activities:
-                # Exercise typically boosts energy for a few hours
-                if 'exercise' in activity.activity_type.name.lower():
-                    adjusted_energy += 1.0
+            try:
+                scheduled_activities = ScheduledActivity.objects.filter(
+                    monk_mode_period__goal__user=user,
+                    start_time__lte=prediction_time.time(),
+                    end_time__gte=(prediction_time - timedelta(hours=2)).time()
+                )
                 
-                # Deep work can be draining
-                elif 'deep work' in activity.activity_type.name.lower():
-                    adjusted_energy -= 0.5
-                
-                # Rest activities restore energy
-                elif activity.activity_type.name.lower() in ['break', 'mindfulness', 'meditation']:
-                    adjusted_energy += 0.5
+                for activity in scheduled_activities:
+                    # Exercise typically boosts energy for a few hours
+                    if 'exercise' in activity.activity_type.name.lower():
+                        adjusted_energy += 1.0
+                    
+                    # Deep work can be draining
+                    elif 'deep work' in activity.activity_type.name.lower():
+                        adjusted_energy -= 0.5
+                    
+                    # Rest activities restore energy
+                    elif activity.activity_type.name.lower() in ['break', 'mindfulness', 'meditation']:
+                        adjusted_energy += 0.5
+            except Exception as e:
+                logger.warning(f"Error adjusting for scheduled activities: {str(e)}")
             
             # Weekend vs weekday adjustment
             if prediction_time.weekday() >= 5:  # Weekend
@@ -323,7 +362,7 @@ class EnergyManagementService:
             
         except Exception as e:
             logger.error(f"Error adjusting energy for context: {str(e)}")
-            return base_energy
+            return float(base_energy)
     
     @staticmethod
     def get_energy_insights(user, days_back=30):
@@ -348,8 +387,18 @@ class EnergyManagementService:
                     ]
                 }
             
-            # Calculate basic statistics
-            energy_values = [log.energy_level for log in energy_logs]
+            # Calculate basic statistics with type validation
+            energy_values = []
+            for log in energy_logs:
+                try:
+                    energy_values.append(float(log.energy_level))
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid energy level in log {log.id}: {log.energy_level}")
+                    continue
+            
+            if not energy_values:
+                return {'error': 'No valid energy data found'}
+            
             avg_energy = sum(energy_values) / len(energy_values)
             min_energy = min(energy_values)
             max_energy = max(energy_values)
@@ -357,30 +406,44 @@ class EnergyManagementService:
             # Find peak energy hours
             hourly_energy = {}
             for log in energy_logs:
-                hour = log.timestamp.hour
-                if hour not in hourly_energy:
-                    hourly_energy[hour] = []
-                hourly_energy[hour].append(log.energy_level)
+                try:
+                    hour = log.timestamp.hour
+                    energy_val = float(log.energy_level)
+                    if hour not in hourly_energy:
+                        hourly_energy[hour] = []
+                    hourly_energy[hour].append(energy_val)
+                except (ValueError, TypeError):
+                    continue
             
             hourly_averages = {
                 hour: sum(values) / len(values) 
                 for hour, values in hourly_energy.items()
+                if values  # Only include hours with valid data
             }
             
-            peak_hours = sorted(hourly_averages.items(), key=lambda x: x[1], reverse=True)[:3]
-            low_hours = sorted(hourly_averages.items(), key=lambda x: x[1])[:3]
+            if hourly_averages:
+                peak_hours = sorted(hourly_averages.items(), key=lambda x: x[1], reverse=True)[:3]
+                low_hours = sorted(hourly_averages.items(), key=lambda x: x[1])[:3]
+            else:
+                peak_hours = []
+                low_hours = []
             
             # Analyze energy patterns by day of week
             daily_energy = {}
             for log in energy_logs:
-                day = log.timestamp.strftime('%A')
-                if day not in daily_energy:
-                    daily_energy[day] = []
-                daily_energy[day].append(log.energy_level)
+                try:
+                    day = log.timestamp.strftime('%A')
+                    energy_val = float(log.energy_level)
+                    if day not in daily_energy:
+                        daily_energy[day] = []
+                    daily_energy[day].append(energy_val)
+                except (ValueError, TypeError):
+                    continue
             
             daily_averages = {
                 day: sum(values) / len(values) 
                 for day, values in daily_energy.items()
+                if values
             }
             
             # Find energy drains and boosters
@@ -419,24 +482,30 @@ class EnergyManagementService:
             drains = {}
             
             for log in energy_logs:
-                factors = log.context_factors or {}
-                
-                # Analyze activities before energy logging
-                if 'activity_before' in factors:
-                    activity = factors['activity_before']
+                try:
+                    energy_level = float(log.energy_level)
+                    factors = log.context_factors or {}
                     
-                    if log.energy_level >= 7:
-                        boosters[activity] = boosters.get(activity, 0) + 1
-                    elif log.energy_level <= 4:
-                        drains[activity] = drains.get(activity, 0) + 1
-                
-                # Analyze other context factors
-                for factor, value in factors.items():
-                    if factor != 'activity_before' and isinstance(value, str):
-                        if log.energy_level >= 7:
-                            boosters[f"{factor}: {value}"] = boosters.get(f"{factor}: {value}", 0) + 1
-                        elif log.energy_level <= 4:
-                            drains[f"{factor}: {value}"] = drains.get(f"{factor}: {value}", 0) + 1
+                    # Analyze activities before energy logging
+                    if 'activity_before' in factors:
+                        activity = str(factors['activity_before'])
+                        
+                        if energy_level >= 7:
+                            boosters[activity] = boosters.get(activity, 0) + 1
+                        elif energy_level <= 4:
+                            drains[activity] = drains.get(activity, 0) + 1
+                    
+                    # Analyze other context factors
+                    for factor, value in factors.items():
+                        if factor != 'activity_before' and value is not None:
+                            factor_str = f"{factor}: {str(value)}"
+                            if energy_level >= 7:
+                                boosters[factor_str] = boosters.get(factor_str, 0) + 1
+                            elif energy_level <= 4:
+                                drains[factor_str] = drains.get(factor_str, 0) + 1
+                                
+                except (ValueError, TypeError):
+                    continue
             
             # Sort by frequency
             top_boosters = sorted(boosters.items(), key=lambda x: x[1], reverse=True)[:5]
@@ -456,57 +525,61 @@ class EnergyManagementService:
         """Generate personalized energy management recommendations"""
         recommendations = []
         
-        # Peak hour recommendations
-        if hourly_avg:
-            peak_hour = max(hourly_avg.items(), key=lambda x: x[1])
-            recommendations.append(
-                f"🌟 Schedule your most important work around {peak_hour[0]:02d}:00 "
-                f"when your energy peaks at {peak_hour[1]:.1f}/10"
-            )
-            
-            low_hour = min(hourly_avg.items(), key=lambda x: x[1])
-            recommendations.append(
-                f"⏰ Avoid demanding tasks around {low_hour[0]:02d}:00 "
-                f"when energy drops to {low_hour[1]:.1f}/10"
-            )
-        
-        # Daily pattern recommendations
-        if daily_avg:
-            best_day = max(daily_avg.items(), key=lambda x: x[1])
-            worst_day = min(daily_avg.items(), key=lambda x: x[1])
-            
-            recommendations.append(
-                f"📅 {best_day[0]}s are your best days (avg: {best_day[1]:.1f}/10) - "
-                "plan important activities then"
-            )
-            
-            if worst_day[1] < avg_energy - 1:
+        try:
+            # Peak hour recommendations
+            if hourly_avg:
+                peak_hour = max(hourly_avg.items(), key=lambda x: x[1])
                 recommendations.append(
-                    f"🛡️ {worst_day[0]}s tend to be challenging (avg: {worst_day[1]:.1f}/10) - "
-                    "schedule lighter tasks or self-care"
+                    f"🌟 Schedule your most important work around {peak_hour[0]:02d}:00 "
+                    f"when your energy peaks at {peak_hour[1]:.1f}/10"
                 )
-        
-        # Context-based recommendations
-        if context_analysis['boosters']:
-            top_booster = context_analysis['boosters'][0].split(' (')[0]
-            recommendations.append(f"💪 '{top_booster}' consistently boosts your energy - do more of this!")
-        
-        if context_analysis['drains']:
-            top_drain = context_analysis['drains'][0].split(' (')[0]
-            recommendations.append(f"⚠️ '{top_drain}' often drains your energy - consider modifications or breaks")
-        
-        # General energy level recommendations
-        if avg_energy < 5:
-            recommendations.extend([
-                "🔋 Your average energy is low - prioritize sleep, nutrition, and stress management",
-                "🏃‍♂️ Regular exercise might help boost overall energy levels",
-                "🧘‍♀️ Consider adding more recovery activities to your schedule"
-            ])
-        elif avg_energy > 7:
-            recommendations.extend([
-                "⚡ Great energy levels! You can handle more challenging tasks",
-                "🎯 Consider setting more ambitious goals for your Monk Mode periods"
-            ])
+                
+                low_hour = min(hourly_avg.items(), key=lambda x: x[1])
+                recommendations.append(
+                    f"⏰ Avoid demanding tasks around {low_hour[0]:02d}:00 "
+                    f"when energy drops to {low_hour[1]:.1f}/10"
+                )
+            
+            # Daily pattern recommendations
+            if daily_avg:
+                best_day = max(daily_avg.items(), key=lambda x: x[1])
+                worst_day = min(daily_avg.items(), key=lambda x: x[1])
+                
+                recommendations.append(
+                    f"📅 {best_day[0]}s are your best days (avg: {best_day[1]:.1f}/10) - "
+                    "plan important activities then"
+                )
+                
+                if worst_day[1] < avg_energy - 1:
+                    recommendations.append(
+                        f"🛡️ {worst_day[0]}s tend to be challenging (avg: {worst_day[1]:.1f}/10) - "
+                        "schedule lighter tasks or self-care"
+                    )
+            
+            # Context-based recommendations
+            if context_analysis['boosters']:
+                top_booster = context_analysis['boosters'][0].split(' (')[0]
+                recommendations.append(f"💪 '{top_booster}' consistently boosts your energy - do more of this!")
+            
+            if context_analysis['drains']:
+                top_drain = context_analysis['drains'][0].split(' (')[0]
+                recommendations.append(f"⚠️ '{top_drain}' often drains your energy - consider modifications or breaks")
+            
+            # General energy level recommendations
+            if avg_energy < 5:
+                recommendations.extend([
+                    "🔋 Your average energy is low - prioritize sleep, nutrition, and stress management",
+                    "🏃‍♂️ Regular exercise might help boost overall energy levels",
+                    "🧘‍♀️ Consider adding more recovery activities to your schedule"
+                ])
+            elif avg_energy > 7:
+                recommendations.extend([
+                    "⚡ Great energy levels! You can handle more challenging tasks",
+                    "🎯 Consider setting more ambitious goals for your Monk Mode periods"
+                ])
+        except Exception as e:
+            logger.error(f"Error generating energy recommendations: {str(e)}")
+            recommendations.append("Continue tracking your energy patterns for personalized insights")
         
         return recommendations
     
@@ -517,12 +590,32 @@ class EnergyManagementService:
             if len(energy_logs) < 7:
                 return "Not enough data for trend analysis"
             
-            # Split logs into weeks
-            first_week = energy_logs[:len(energy_logs)//2]
-            second_week = energy_logs[len(energy_logs)//2:]
+            # Split logs into two halves for comparison
+            mid_point = len(energy_logs) // 2
+            first_half = energy_logs[:mid_point]
+            second_half = energy_logs[mid_point:]
             
-            first_avg = sum(log.energy_level for log in first_week) / len(first_week)
-            second_avg = sum(log.energy_level for log in second_week) / len(second_week)
+            # Calculate averages with type validation
+            first_values = []
+            second_values = []
+            
+            for log in first_half:
+                try:
+                    first_values.append(float(log.energy_level))
+                except (ValueError, TypeError):
+                    continue
+            
+            for log in second_half:
+                try:
+                    second_values.append(float(log.energy_level))
+                except (ValueError, TypeError):
+                    continue
+            
+            if not first_values or not second_values:
+                return "Insufficient valid data for trend analysis"
+            
+            first_avg = sum(first_values) / len(first_values)
+            second_avg = sum(second_values) / len(second_values)
             
             difference = second_avg - first_avg
             
@@ -538,66 +631,8 @@ class EnergyManagementService:
             return "Unable to calculate trends"
     
     @staticmethod
-    def schedule_energy_optimization(user):
-        """Suggest schedule optimizations based on energy patterns"""
-        try:
-            # Get user's energy insights
-            insights = EnergyManagementService.get_energy_insights(user)
-            
-            if 'peak_hours' not in insights:
-                return []
-            
-            # Get current active period
-            active_period = user.monk_mode_goals.filter(
-                current_status='active'
-            ).first()
-            
-            if not active_period or not active_period.periods.filter(is_active=True).exists():
-                return []
-            
-            period = active_period.periods.filter(is_active=True).first()
-            
-            # Get today's activities
-            today = timezone.now().date()
-            day_of_period = (today - period.start_date).days + 1
-            
-            activities = ScheduledActivity.objects.filter(
-                monk_mode_period=period,
-                day_of_period=day_of_period,
-                is_completed=False
-            )
-            
-            optimizations = []
-            
-            # Extract peak hours from insights
-            peak_hours = []
-            for peak_str in insights.get('peak_hours', []):
-                hour = int(peak_str.split(':')[0])
-                peak_hours.append(hour)
-            
-            # Suggest moving high-energy tasks to peak hours
-            high_energy_activities = activities.filter(energy_required__gte=7)
-            for activity in high_energy_activities:
-                activity_hour = activity.start_time.hour
-                if activity_hour not in peak_hours:
-                    closest_peak = min(peak_hours, key=lambda x: abs(x - activity_hour))
-                    optimizations.append({
-                        'activity': activity,
-                        'suggestion': f"Move '{activity.description}' to {closest_peak:02d}:00 for better energy alignment",
-                        'current_time': activity.start_time.strftime('%H:%M'),
-                        'suggested_time': f"{closest_peak:02d}:00",
-                        'reason': 'High energy task during peak energy time'
-                    })
-            
-            return optimizations
-            
-        except Exception as e:
-            logger.error(f"Error scheduling energy optimization: {str(e)}")
-            return []
-    
-    @staticmethod
     def get_recovery_recommendations(user):
-        """Get personalized recovery recommendations"""
+        """Get personalized recovery recommendations with enhanced validation"""
         try:
             # Get recent energy levels
             recent_logs = EnergyLog.objects.filter(
@@ -608,7 +643,19 @@ class EnergyManagementService:
             if not recent_logs.exists():
                 return ["Start tracking your energy levels to get personalized recovery recommendations"]
             
-            recent_energy = [log.energy_level for log in recent_logs[:5]]
+            # Validate and calculate recent energy
+            recent_energy = []
+            for log in recent_logs[:5]:
+                try:
+                    energy_val = float(log.energy_level)
+                    if 1 <= energy_val <= 10:  # Validate range
+                        recent_energy.append(energy_val)
+                except (ValueError, TypeError):
+                    continue
+            
+            if not recent_energy:
+                return ["Invalid energy data found. Please ensure you're logging valid energy levels (1-10)"]
+            
             avg_recent = sum(recent_energy) / len(recent_energy)
             
             recommendations = []
@@ -636,15 +683,28 @@ class EnergyManagementService:
                 ])
             
             # Add context-specific recommendations
-            last_log = recent_logs.first()
-            if last_log and last_log.context_factors:
-                factors = last_log.context_factors
-                
-                if factors.get('stress_level', 0) > 3:
-                    recommendations.append("🧘‍♀️ High stress detected - prioritize stress management techniques")
-                
-                if factors.get('sleep_hours', 8) < 6:
-                    recommendations.append("😴 Insufficient sleep detected - aim for 7-9 hours tonight")
+            if recent_logs.exists():
+                last_log = recent_logs.first()
+                if last_log and last_log.context_factors:
+                    factors = last_log.context_factors
+                    
+                    # Validate stress level
+                    stress_level = factors.get('stress_level', 0)
+                    try:
+                        stress_level = int(stress_level) if stress_level else 0
+                        if stress_level > 3:
+                            recommendations.append("🧘‍♀️ High stress detected - prioritize stress management techniques")
+                    except (ValueError, TypeError):
+                        pass
+                    
+                    # Validate sleep hours
+                    sleep_hours = factors.get('sleep_hours', 8)
+                    try:
+                        sleep_hours = float(sleep_hours) if sleep_hours else 8
+                        if sleep_hours < 6:
+                            recommendations.append("😴 Insufficient sleep detected - aim for 7-9 hours tonight")
+                    except (ValueError, TypeError):
+                        pass
             
             return recommendations
             
